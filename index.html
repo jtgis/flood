@@ -1,0 +1,259 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>NB Flood Watch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+    <!-- Full-screen map -->
+    <div id="map"></div>
+
+    <!-- Logo / brand -->
+    <div class="map-logo">
+        <svg class="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 7 4 10 4 14a8 8 0 0 0 16 0c0-4-4-7-8-12z"/></svg>
+        <span>nbflood</span>
+    </div>
+
+    <!-- Left controls -->
+    <div class="left-controls">
+        <button id="btn-reset" class="ctrl-btn" title="Reset view" aria-label="Reset view">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 3 3 9 9 9"/></svg>
+        </button>
+        <button id="btn-zoom-in" class="ctrl-btn" title="Zoom in" aria-label="Zoom in">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button id="btn-zoom-out" class="ctrl-btn" title="Zoom out" aria-label="Zoom out">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button id="btn-layers" class="ctrl-btn" title="Toggle stations panel" aria-label="Toggle stations panel">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        </button>
+        <button id="btn-locate" class="ctrl-btn" title="My location" aria-label="My location">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M2 12h4"/></svg>
+        </button>
+    </div>
+
+    <!-- Stations panel (toggled from bottom bar "stations" button) -->
+    <div id="legend-panel" class="legend-panel hidden">
+        <div class="legend-header">
+            <span class="legend-title">WATER LEVELS</span>
+            <button id="legend-close" class="legend-close-btn" aria-label="Close">&times;</button>
+        </div>
+
+        <!-- Status legend -->
+        <div class="legend-section legend-colors">
+            <div class="legend-row"><span class="legend-dot" style="background:var(--c-normal)"></span> Normal <span class="legend-count" id="count-normal">0</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--c-advisory)"></span> Advisory <span class="legend-count" id="count-advisory">0</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--c-watch)"></span> Watch <span class="legend-count" id="count-watch">0</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--c-warning)"></span> Warning <span class="legend-count" id="count-warning">0</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--c-flood)"></span> Flood <span class="legend-count" id="count-flood">0</span></div>
+            <div class="legend-row"><span class="legend-dot" style="background:var(--c-nodata)"></span> No Current Data <span class="legend-count" id="count-nodata">0</span></div>
+        </div>
+
+        <!-- Station list -->
+        <div class="legend-section-header" id="toggle-stations">
+            <span>STATIONS</span>
+            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="legend-section station-section" id="station-section">
+            <div class="station-sort-bar">
+                <button class="sort-btn active" data-sort="location">Location</button>
+                <button class="sort-btn" data-sort="name">Name</button>
+                <button class="sort-btn" data-sort="risk">Risk</button>
+            </div>
+            <ul id="station-list"></ul>
+        </div>
+
+        <div class="legend-section overlay-section" style="padding:6px 14px;">
+            <label class="overlay-opt"><input type="checkbox" id="chk-nodata"> Show No-Data Stations</label>
+        </div>
+
+        <div class="legend-footer">
+            <span id="data-timestamp" class="legend-ts"></span>
+        </div>
+    </div>
+
+    <!-- Layers panel (toggled from left control layers button) -->
+    <div id="layers-panel" class="layers-panel hidden">
+        <div class="legend-header">
+            <span class="legend-title">LAYERS</span>
+            <button id="layers-close" class="legend-close-btn" aria-label="Close">&times;</button>
+        </div>
+
+        <!-- Basemap -->
+        <div class="legend-section-header" id="toggle-basemap">
+            <span>BASEMAP</span>
+            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="legend-section basemap-section" id="basemap-section">
+            <label class="basemap-opt"><input type="radio" name="basemap" value="street"> Street Map</label>
+            <label class="basemap-opt"><input type="radio" name="basemap" value="imagery" checked> Imagery</label>
+        </div>
+
+        <!-- Historical Flood Extents -->
+        <div class="legend-section-header" id="toggle-flood-layers">
+            <span>FLOOD EXTENTS</span>
+            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="legend-section overlay-section" id="flood-layers-section">
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_8"> 1973 Flood Limits</label>
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_0"> 2008 &amp; 2018 Flood Limits</label>
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_1"> 1976 Ice Jam – Perth-Andover</label>
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_2"> 1987 Ice Jam – Perth-Andover</label>
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_3"> 1973 Flood – Fredericton to Gagetown</label>
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_4"> 2008 Flood – Upper Saint John</label>
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_5"> 2008 Flood – Lower Saint John</label>
+            <label class="overlay-opt"><input type="checkbox" data-layer="flood_6"> 2018 Flood – Lower Saint John</label>
+        </div>
+
+    </div>
+
+    <!-- Station detail panel (bottom sheet) -->
+    <section id="station-panel" class="station-panel hidden" aria-hidden="true">
+        <div class="sp-drag-handle"></div>
+        <div class="sp-header">
+            <div class="sp-title-row">
+                <h2 id="panel-station-name">&mdash;</h2>
+                <span id="panel-alert-badge" class="sp-badge normal">Normal</span>
+            </div>
+            <button id="panel-close" class="sp-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="sp-meta">
+            <div class="sp-meta-item">
+                <span class="sp-meta-val" id="panel-current-level">&mdash;</span>
+                <span class="sp-meta-lbl">Level (m)</span>
+            </div>
+            <div class="sp-meta-item">
+                <span class="sp-meta-val" id="panel-trend">&mdash;</span>
+                <span class="sp-meta-lbl">Trend</span>
+            </div>
+            <div class="sp-meta-item">
+                <span class="sp-meta-val" id="panel-issued">&mdash;</span>
+                <span class="sp-meta-lbl">Issued</span>
+            </div>
+        </div>
+        <div class="sp-chart-wrap">
+            <canvas id="station-chart"></canvas>
+        </div>
+        <div class="sp-footer">
+            <div class="sp-thresholds">
+                <span class="sp-th" data-level="advisory">Adv: <b id="thresh-advisory">&mdash;</b></span>
+                <span class="sp-th" data-level="watch">Watch: <b id="thresh-watch">&mdash;</b></span>
+                <span class="sp-th" data-level="warning">Warn: <b id="thresh-warning">&mdash;</b></span>
+                <span class="sp-th" data-level="flood">Flood: <b id="thresh-flood">&mdash;</b></span>
+                <span class="sp-th" data-level="record">Rec: <b id="thresh-record">&mdash;</b></span>
+            </div>
+            <a id="panel-wsc-link" href="#" target="_blank" rel="noopener" class="sp-wsc-link" style="display:none;">
+                WSC Data &rarr;
+            </a>
+        </div>
+    </section>
+
+    <!-- Bottom pill bar -->
+    <div class="bottom-bar">
+        <a class="bb-btn" href="https://geonb.snb.ca/rwm/#en" target="_blank" rel="noopener">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span>official</span>
+        </a>
+        <button class="bb-btn" id="bb-stations">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8 7 4 10 4 14a8 8 0 0 0 16 0c0-4-4-7-8-12z"/></svg>
+            <span>stations</span>
+        </button>
+        <button class="bb-btn" id="bb-summary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+            <span>summary</span>
+        </button>
+        <button class="bb-btn" id="bb-help">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>help</span>
+        </button>
+    </div>
+
+    <!-- Summary modal -->
+    <div id="summary-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Flood Summary</h3>
+                <button class="modal-close" data-close="summary-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="summary-body">
+                <p class="modal-placeholder">Loading summary...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help modal -->
+    <div id="help-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>About NB Flood Watch</h3>
+                <button class="modal-close" data-close="help-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>A real-time water level monitoring dashboard for New Brunswick rivers and streams. This is an <strong>unofficial</strong> community project &mdash; always refer to the <a href="https://geonb.snb.ca/rwm/#en" target="_blank">official GeoNB River Watch</a> for authoritative information.</p>
+
+                <p><strong>How to Use:</strong></p>
+                <ul>
+                    <li>Click a station marker on the map or in the station list to view its water level chart.</li>
+                    <li>The chart shows observed levels, forecast data, and WSC real-time readings over a &plusmn;3 day window centered on today.</li>
+                    <li>Use the <em>Layers</em> button (left side) to toggle historical flood extents and switch basemaps.</li>
+                    <li>Use the <em>Stations</em> button (bottom bar) to browse stations by location, name, or risk level.</li>
+                    <li>Coloured threshold lines on each chart indicate advisory, watch, warning, flood, and record levels.</li>
+                </ul>
+
+                <p><strong>Status Levels:</strong></p>
+                <ul>
+                    <li><strong style="color:var(--c-normal)">Normal</strong> &mdash; Below advisory threshold</li>
+                    <li><strong style="color:var(--c-advisory)">Advisory</strong> &mdash; Rising, approaching watch level</li>
+                    <li><strong style="color:var(--c-watch)">Watch</strong> &mdash; Moderate flood risk</li>
+                    <li><strong style="color:var(--c-warning)">Warning</strong> &mdash; Significant flood risk</li>
+                    <li><strong style="color:var(--c-flood)">Flood</strong> &mdash; At or above flood stage</li>
+                    <li><strong style="color:var(--c-nodata)">No Data</strong> &mdash; No recent readings available</li>
+                </ul>
+
+                <p><strong>Data Sources &amp; Acknowledgements:</strong></p>
+                <p>This project would not be possible without the following open data providers. Thank you!</p>
+                <ul>
+                    <li><a href="https://geonb.snb.ca/rwm/#en" target="_blank"><strong>GeoNB River Watch</strong></a> &mdash; Province of New Brunswick, Department of Environment &amp; Local Government. Provides flood alert thresholds, forecast water levels, and station metadata via the River Watch Map XML feeds.</li>
+                    <li><a href="https://wateroffice.ec.gc.ca/" target="_blank"><strong>Water Survey of Canada (WSC)</strong></a> &mdash; Environment and Climate Change Canada. Provides real-time hydrometric gauge data via the EC GeoMet OGC API.</li>
+                    <li><a href="https://geonb.snb.ca/arcgis/rest/services/GeoNB_ENV_Historical_Floods/MapServer" target="_blank"><strong>GeoNB Historical Floods</strong></a> &mdash; Province of New Brunswick. Provides historical flood extent and limit layers from 1973, 1976, 1987, 2008, and 2018 events.</li>
+                    <li><a href="https://services6.arcgis.com/MgHatnn8VBHh0mIt/ArcGIS/rest/services/Canada_Province_Boundary/FeatureServer" target="_blank"><strong>Canada Province Boundary</strong></a> &mdash; Province boundary geometry via ArcGIS Online.</li>
+                    <li><a href="https://leafletjs.com/" target="_blank"><strong>Leaflet</strong></a> &mdash; Open-source interactive mapping library.</li>
+                    <li><a href="https://www.chartjs.org/" target="_blank"><strong>Chart.js</strong></a> &mdash; Open-source charting library for the water level graphs.</li>
+                    <li><a href="https://www.esri.com/" target="_blank"><strong>Esri</strong></a> &mdash; World Imagery basemap tiles and ArcGIS services.</li>
+                    <li><a href="https://www.openstreetmap.org/" target="_blank"><strong>OpenStreetMap</strong></a> &mdash; Street Map basemap tiles.</li>
+                </ul>
+
+                <p><strong>Disclaimer:</strong></p>
+                <p style="font-size:0.85em;opacity:0.8;">This is an independent, unofficial tool. Data is fetched in real time from public sources and may be delayed or incomplete. Do not rely solely on this application for flood safety decisions. Always consult official Government of New Brunswick advisories and emergency management resources.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast toast-hidden" role="alert"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+    <!-- App JS -->
+    <script src="js/utils.js"></script>
+    <script src="js/alerts.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/list.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
