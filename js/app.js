@@ -12,6 +12,7 @@
         FloodChart.init();
         FloodList.init(onStationSelect);
 
+        setupSplashScreen();
         setupLeftControls();
         setupLegendPanel();
         setupLayersPanel();
@@ -24,6 +25,17 @@
 
         loadData();
     });
+
+    // -- Splash Screen --
+
+    function setupSplashScreen() {
+        var splash = document.getElementById('splash-screen');
+        if (!splash) return;
+        document.getElementById('splash-enter').addEventListener('click', function () {
+            splash.classList.add('hidden');
+            setTimeout(function () { splash.remove(); }, 500);
+        });
+    }
 
     // -- Data loading --
 
