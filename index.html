@@ -125,6 +125,17 @@
             </div>
             <button id="panel-close" class="sp-close" aria-label="Close">&times;</button>
         </div>
+
+        <div class="sp-chart-wrap">
+            <canvas id="station-chart"></canvas>
+        </div>
+
+        <!-- Level gauge bar -->
+        <div class="sp-gauge" id="sp-gauge">
+            <div class="sp-gauge-track" id="gauge-track"></div>
+            <div class="sp-gauge-marker" id="gauge-marker" style="display:none;"></div>
+        </div>
+
         <div class="sp-meta">
             <div class="sp-meta-item">
                 <span class="sp-meta-val" id="panel-current-level">&mdash;</span>
@@ -136,11 +147,8 @@
             </div>
             <div class="sp-meta-item">
                 <span class="sp-meta-val" id="panel-issued">&mdash;</span>
-                <span class="sp-meta-lbl">Issued</span>
+                <span class="sp-meta-lbl">Last Reading</span>
             </div>
-        </div>
-        <div class="sp-chart-wrap">
-            <canvas id="station-chart"></canvas>
         </div>
         <div class="sp-footer">
             <div class="sp-thresholds">
@@ -204,10 +212,8 @@
                 <p>This is an <strong>unofficial</strong> community project. For official flood information, always consult the Government of New Brunswick.</p>
             </div>
 
-            <a class="splash-official-btn" href="https://geonb.snb.ca/rwm/#en" target="_blank" rel="noopener">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Official GeoNB River Watch
-            </a>
+            <p class="splash-link-label">Continue to this <strong>unofficial</strong> community site:</p>
+            <button id="splash-enter" class="splash-enter-btn splash-enter-blue">Enter nbflood</button>
 
             <div class="splash-thanks">
                 <p>Made possible by open data from:</p>
@@ -217,7 +223,11 @@
                 </div>
             </div>
 
-            <button id="splash-enter" class="splash-enter-btn">Enter nbflood</button>
+            <p class="splash-link-label">Or visit the <strong>official</strong> government site:</p>
+            <a class="splash-official-btn splash-official-neutral" href="https://geonb.snb.ca/rwm/#en" target="_blank" rel="noopener">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Official GeoNB River Watch
+            </a>
         </div>
     </div>
 

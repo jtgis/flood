@@ -100,7 +100,16 @@
             trend.direction.charAt(0).toUpperCase() + trend.direction.slice(1) +
             (trend.rate > 0 ? ' (' + trend.rate + ' m/hr)' : '');
 
-        document.getElementById('panel-issued').textContent = station.issuedDate || '\u2014';
+        var issuedText = '\u2014';
+        if (station.lastReadingTime) {
+            var d = station.lastReadingTime;
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            issuedText = months[d.getMonth()] + ' ' + d.getDate() + ', ' +
+                         ((d.getHours() % 12) || 12) + ':' +
+                         (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + ' ' +
+                         (d.getHours() >= 12 ? 'PM' : 'AM');
+        }
+        document.getElementById('panel-issued').textContent = issuedText;
 
         // Thresholds
         var th = station.thresholds;

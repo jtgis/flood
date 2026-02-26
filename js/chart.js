@@ -1,9 +1,16 @@
 ﻿/* ==========================================================================
-   chart.js — Redesigned water-level chart
-   - Always anchored to current date (±3 days window)
-   - Stale stations show empty chart with "No current data" overlay
-   - WSC realtime data shown as separate dataset
-   - Cleaner, more readable design with gradient fills
+   chart.js — Original water-level chart for nbflood
+   ─────────────────────────────────────────────────────────────────────────
+   Key design features (completely custom):
+     • Zone-colored line: segment color shifts through blue → green →
+       yellow → orange → red as readings cross threshold zones
+     • Zone-tinted gradient fill under the line (custom canvas plugin)
+     • Horizontal gauge bar in the panel showing current level position
+     • Small threshold tick marks on the right chart edge with faint
+       hint lines instead of full horizontal annotations
+     • Custom "NOW" badge & crosshair plugins
+     • WSC data rendered as dotted line with visible dot markers
+     • White-themed tooltip matching the panel style
    ========================================================================== */
 
 var FloodChart = (function () {
@@ -12,40 +19,300 @@ var FloodChart = (function () {
     var chart = null;
     var canvasEl = null;
     var wrapEl = null;
-    var overlayEl = null;   // "no data" overlay
+    var overlayEl = null;
 
-    // Visual constants
-    var MEASURED_COLOR   = '#ffffff';
-    var MEASURED_GLOW    = 'rgba(59, 130, 246, 0.35)';
-    var FORECAST_COLOR   = '#a78bfa';
-    var WSC_COLOR        = '#38bdf8';
+    /* ── colour palette ── */
 
-    var THRESHOLD_COLORS = {
+    var COLORS = {
+        normal:   '#2563eb',
         advisory: '#22c55e',
-        watch:    '#eab308',
-        warning:  '#f97316',
-        flood:    '#dc2626',
-        record:   '#a855f7'
+        watch:    '#facc15',
+        warning:  '#fb923c',
+        flood:    '#ef4444',
+        record:   '#7c3aed'
     };
 
-    var ZONE_ALPHAS = {
-        normal:   'rgba(59,130,246,0.05)',
-        advisory: 'rgba(34,197,94,0.07)',
-        watch:    'rgba(234,179,8,0.07)',
-        warning:  'rgba(249,115,22,0.07)',
-        flood:    'rgba(220,38,38,0.07)'
+    var FILLS = {
+        normal:   'rgba(37,99,235,0.18)',
+        advisory: 'rgba(34,197,94,0.18)',
+        watch:    'rgba(250,204,21,0.18)',
+        warning:  'rgba(251,146,60,0.18)',
+        flood:    'rgba(239,68,68,0.18)'
     };
 
-    // Time window: 3 days before now, 3 days after
+    var FORECAST_COLOR = '#8b5cf6';
+    var WSC_COLOR      = '#0e7490';
+
     var WINDOW_HOURS_BACK    = 72;
     var WINDOW_HOURS_FORWARD = 72;
 
-    function init() {
-        canvasEl = document.getElementById('station-chart');
-        wrapEl = canvasEl ? canvasEl.parentElement : null;
+    /* ── helpers ── */
+
+    function getZone(y, th) {
+        if (th.flood    != null && y >= th.flood)    return 'flood';
+        if (th.warning  != null && y >= th.warning)  return 'warning';
+        if (th.watch    != null && y >= th.watch)    return 'watch';
+        if (th.advisory != null && y >= th.advisory) return 'advisory';
+        return 'normal';
     }
 
-    // ── Ensure overlay element exists ──
+    function hexToRgba(hex, a) {
+        var r = parseInt(hex.slice(1, 3), 16);
+        var g = parseInt(hex.slice(3, 5), 16);
+        var b = parseInt(hex.slice(5, 7), 16);
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+    }
+
+    /* ================================================================
+       Custom Chart.js Plugins
+       ================================================================ */
+
+    /* ── 1. Zone-coloured gradient fill beneath the measured line ── */
+
+    var zoneFillPlugin = {
+        id: 'zoneFill',
+        beforeDatasetsDraw: function (ci) {
+            var th = ci._thresholds;
+            var mi = ci._measuredIndex;
+            if (!th || mi == null) return;
+            var meta = ci.getDatasetMeta(mi);
+            if (!meta || meta.hidden || !meta.data || meta.data.length < 2) return;
+
+            var ctx  = ci.ctx;
+            var area = ci.chartArea;
+            var raw  = ci.data.datasets[mi].data;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
+            ctx.clip();
+
+            for (var i = 0; i < meta.data.length - 1; i++) {
+                var p0 = meta.data[i];
+                var p1 = meta.data[i + 1];
+                if (p0.skip || p1.skip) continue;
+
+                var avgY = (raw[i].y + raw[i + 1].y) / 2;
+                var zone = getZone(avgY, th);
+
+                ctx.beginPath();
+                ctx.moveTo(p0.x, p0.y);
+                ctx.lineTo(p1.x, p1.y);
+                ctx.lineTo(p1.x, area.bottom);
+                ctx.lineTo(p0.x, area.bottom);
+                ctx.closePath();
+                ctx.fillStyle = FILLS[zone];
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+    };
+
+    /* ── 2. Crosshair (vertical tracking line on hover) ── */
+
+    var crosshairPlugin = {
+        id: 'crosshair',
+        afterEvent: function (ci, args) {
+            var e = args.event;
+            if (e.type === 'mousemove') {
+                ci._crossX = e.x;
+                ci._showCross = true;
+            }
+            if (e.type === 'mouseout') ci._showCross = false;
+        },
+        afterDraw: function (ci) {
+            if (!ci._showCross) return;
+            var x = ci._crossX;
+            var a = ci.chartArea;
+            if (x < a.left || x > a.right) return;
+
+            var ctx = ci.ctx;
+            ctx.save();
+            ctx.beginPath();
+            ctx.setLineDash([3, 4]);
+            ctx.lineWidth   = 1;
+            ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+            ctx.moveTo(x, a.top);
+            ctx.lineTo(x, a.bottom);
+            ctx.stroke();
+            ctx.restore();
+        }
+    };
+
+    /* ── 3. "NOW" vertical line + badge ── */
+
+    var nowLinePlugin = {
+        id: 'nowLine',
+        afterDraw: function (ci) {
+            var now = ci._nowTime;
+            if (!now) return;
+            var a = ci.chartArea;
+            var x = ci.scales.x.getPixelForValue(now);
+            // Clamp to chart area so NOW is always visible
+            x = Math.max(a.left + 1, Math.min(a.right - 1, x));
+
+            var ctx = ci.ctx;
+            ctx.save();
+
+            // faint dashed vertical line
+            ctx.beginPath();
+            ctx.setLineDash([2, 4]);
+            ctx.lineWidth   = 1;
+            ctx.strokeStyle = 'rgba(15,23,42,0.14)';
+            ctx.moveTo(x, a.top);
+            ctx.lineTo(x, a.bottom);
+            ctx.stroke();
+
+            // "NOW" badge at top of chart area
+            ctx.setLineDash([]);
+            ctx.font = '700 10px Inter, sans-serif';
+            var text = 'NOW';
+            var tw = ctx.measureText(text).width;
+            var bw = tw + 10, bh = 15;
+            var bx = x - bw / 2, by = a.top + 6;
+            var r  = 4;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.moveTo(bx + r, by);
+            ctx.arcTo(bx + bw, by, bx + bw, by + bh, r);
+            ctx.arcTo(bx + bw, by + bh, bx, by + bh, r);
+            ctx.arcTo(bx, by + bh, bx, by, r);
+            ctx.arcTo(bx, by, bx + bw, by, r);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle    = '#ffffff';
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, x, by + bh / 2);
+
+            ctx.restore();
+        }
+    };
+
+    /* ── 4. Threshold ticks on the right edge ── */
+
+    var thresholdTickPlugin = {
+        id: 'thresholdTicks',
+        afterDraw: function (ci) {
+            var th = ci._thresholds;
+            if (!th) return;
+            var a      = ci.chartArea;
+            var yScale = ci.scales.y;
+            var ctx    = ci.ctx;
+
+            var defs = [
+                { key: 'advisory', lbl: 'Advisory',  color: COLORS.advisory },
+                { key: 'watch',    lbl: 'Watch',     color: COLORS.watch },
+                { key: 'warning',  lbl: 'Warning',   color: COLORS.warning },
+                { key: 'flood',    lbl: 'Flood',     color: COLORS.flood },
+                { key: 'record',   lbl: 'Record',    color: COLORS.record }
+            ];
+
+            ctx.save();
+            defs.forEach(function (d) {
+                var val = th[d.key];
+                if (val == null) return;
+                var y = yScale.getPixelForValue(val);
+                if (y < a.top || y > a.bottom) return;
+
+                // faint dotted hint line across chart
+                ctx.beginPath();
+                ctx.strokeStyle = hexToRgba(d.color, 0.14);
+                ctx.lineWidth   = 1;
+                ctx.setLineDash([2, 6]);
+                ctx.moveTo(a.left, y);
+                ctx.lineTo(a.right - 14, y);
+                ctx.stroke();
+
+                // solid coloured tick on right edge
+                ctx.setLineDash([]);
+                ctx.fillStyle = d.color;
+                ctx.fillRect(a.right + 2, y - 1.5, 6, 3);
+
+                // label to the right of the chart
+                ctx.font         = '600 11px Inter, sans-serif';
+                ctx.textAlign    = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle    = d.color;
+                ctx.fillText(d.lbl, a.right + 12, y);
+            });
+            ctx.restore();
+        }
+    };
+
+    /* ================================================================
+       Horizontal Level Gauge
+       ================================================================ */
+
+    function updateGauge(station) {
+        var track  = document.getElementById('gauge-track');
+        var marker = document.getElementById('gauge-marker');
+        if (!track || !marker) return;
+
+        var th    = station.thresholds;
+        var level = station.currentLevel;
+
+        // compute range from all relevant values
+        var vals = [];
+        if (level != null) vals.push(level);
+        ['advisory', 'watch', 'warning', 'flood', 'record'].forEach(function (k) {
+            if (th[k] != null) vals.push(th[k]);
+        });
+        if (station.measures) {
+            station.measures.forEach(function (m) {
+                if (m.wlvl != null) vals.push(m.wlvl);
+            });
+        }
+        if (!vals.length) { marker.style.display = 'none'; return; }
+
+        var lo  = Math.min.apply(null, vals);
+        var hi  = Math.max.apply(null, vals);
+        var pad = Math.max((hi - lo) * 0.12, 0.3);
+        var rMin = lo - pad, rMax = hi + pad, total = rMax - rMin;
+
+        // build ordered zone boundaries
+        var boundaries = [{ val: rMin, color: COLORS.normal }];
+        if (th.advisory != null) boundaries.push({ val: th.advisory, color: COLORS.advisory });
+        if (th.watch    != null) boundaries.push({ val: th.watch,    color: COLORS.watch });
+        if (th.warning  != null) boundaries.push({ val: th.warning,  color: COLORS.warning });
+        if (th.flood    != null) boundaries.push({ val: th.flood,    color: COLORS.flood });
+        boundaries.push({ val: rMax, color: null });
+
+        track.innerHTML = '';
+        for (var i = 0; i < boundaries.length - 1; i++) {
+            var from = boundaries[i].val;
+            var to   = boundaries[i + 1].val;
+            var pct  = ((to - from) / total) * 100;
+            if (pct <= 0) continue;
+            var seg = document.createElement('div');
+            seg.className    = 'sp-gauge-seg';
+            seg.style.width  = pct + '%';
+            seg.style.background = boundaries[i].color;
+            track.appendChild(seg);
+        }
+
+        // position needle marker
+        if (level != null) {
+            var pos = ((level - rMin) / total) * 100;
+            pos = Math.max(0, Math.min(100, pos));
+            marker.style.left    = pos + '%';
+            marker.style.display = '';
+        } else {
+            marker.style.display = 'none';
+        }
+    }
+
+    /* ================================================================
+       Init / Overlay
+       ================================================================ */
+
+    function init() {
+        canvasEl = document.getElementById('station-chart');
+        wrapEl   = canvasEl ? canvasEl.parentElement : null;
+    }
+
     function ensureOverlay() {
         if (overlayEl) return;
         if (!wrapEl) return;
@@ -54,141 +321,143 @@ var FloodChart = (function () {
         overlayEl.innerHTML = '<span>No current data available</span>';
         wrapEl.appendChild(overlayEl);
     }
-    function showOverlay(show) {
+    function showOverlay(vis) {
         ensureOverlay();
-        if (overlayEl) overlayEl.style.display = show ? 'flex' : 'none';
+        if (overlayEl) overlayEl.style.display = vis ? 'flex' : 'none';
     }
 
-    // ── Main show function ──
+    /* ================================================================
+       Main show()
+       ================================================================ */
 
     function show(station) {
         if (chart) { chart.destroy(); chart = null; }
         if (!canvasEl) return;
 
+        var th  = station.thresholds;
         var now = new Date();
-        var xMin = new Date(now.getTime() - WINDOW_HOURS_BACK * 3600000);
+        var xMin = new Date(now.getTime() - WINDOW_HOURS_BACK    * 3600000);
         var xMax = new Date(now.getTime() + WINDOW_HOURS_FORWARD * 3600000);
 
-        // Filter data to the visible window
+        /* ── filter data to visible window ── */
         var measuredData = filterToWindow(station.measures, xMin, xMax);
+        var wscData      = filterToWindow(station.wscMeasures || [], xMin, xMax);
         var forecastData = [];
-        var wscData = filterToWindow(station.wscMeasures || [], xMin, xMax);
 
-        // Forecasts: connect to last measured point for continuity
         if (station.forecasts && station.forecasts.length) {
-            var rawForecast = filterToWindow(station.forecasts, xMin, xMax);
-            if (measuredData.length > 0 && rawForecast.length > 0) {
-                var lastMeas = measuredData[measuredData.length - 1];
-                forecastData.push({ x: lastMeas.x, y: lastMeas.y });
+            var rawFC = filterToWindow(station.forecasts, xMin, xMax);
+            if (measuredData.length && rawFC.length) {
+                var last = measuredData[measuredData.length - 1];
+                forecastData.push({ x: last.x, y: last.y });
             }
-            forecastData = forecastData.concat(rawForecast);
+            forecastData = forecastData.concat(rawFC);
         }
 
-        // Determine if there's any current data to show
-        var hasCurrentData = measuredData.length > 0 || wscData.length > 0 || forecastData.length > 0;
+        var hasData = measuredData.length > 0 || wscData.length > 0 || forecastData.length > 0;
         var isStale = station.isStale && measuredData.length === 0 && wscData.length === 0;
+        showOverlay(isStale || !hasData);
 
-        showOverlay(isStale || !hasCurrentData);
-
-        // Collect all values for y-axis range (include thresholds always)
-        var allValues = [];
-        measuredData.forEach(function (p) { allValues.push(p.y); });
-        forecastData.forEach(function (p) { allValues.push(p.y); });
-        wscData.forEach(function (p) { allValues.push(p.y); });
-
-        var th = station.thresholds;
+        /* ── Y-axis range ── */
+        var allY = [];
+        measuredData.forEach(function (p) { allY.push(p.y); });
+        forecastData.forEach(function (p) { allY.push(p.y); });
+        wscData.forEach(function (p) { allY.push(p.y); });
         [th.advisory, th.watch, th.warning, th.flood, th.record].forEach(function (v) {
-            if (v != null) allValues.push(v);
+            if (v != null) allY.push(v);
         });
 
-        // If no data at all, use thresholds or default range
-        var minVal = allValues.length ? Math.min.apply(null, allValues) : 0;
-        var maxVal = allValues.length ? Math.max.apply(null, allValues) : 10;
-        var yPadding = Math.max((maxVal - minVal) * 0.15, 0.5);
-        var yMin = Math.floor((minVal - yPadding) * 10) / 10;
-        var yMax = Math.ceil((maxVal + yPadding) * 10) / 10;
+        var lo   = allY.length ? Math.min.apply(null, allY) : 0;
+        var hi   = allY.length ? Math.max.apply(null, allY) : 10;
+        var yPad = Math.max((hi - lo) * 0.15, 0.5);
+        var yMin = Math.floor((lo - yPad) * 10) / 10;
+        var yMax = Math.ceil ((hi + yPad) * 10) / 10;
 
-        // Build annotations
-        var annotations = buildAnnotations(th, yMin, yMax, now);
-
-        // Build datasets
+        /* ── datasets ── */
         var datasets = [];
+        var measuredIndex = null;
 
-        if (measuredData.length > 0) {
+        if (measuredData.length) {
+            measuredIndex = datasets.length;
             datasets.push({
-                label: 'Measured',
+                label: 'Observed',
                 data: measuredData,
-                borderColor: MEASURED_COLOR,
-                backgroundColor: function (ctx) {
-                    if (!ctx.chart.chartArea) return MEASURED_GLOW;
-                    var g = ctx.chart.ctx.createLinearGradient(0, ctx.chart.chartArea.top, 0, ctx.chart.chartArea.bottom);
-                    g.addColorStop(0, 'rgba(59,130,246,0.30)');
-                    g.addColorStop(1, 'rgba(59,130,246,0.02)');
-                    return g;
-                },
-                fill: true,
-                borderWidth: 2.5,
+                borderColor: COLORS.normal,
+                borderWidth: 5,
+                fill: false,
                 pointRadius: 0,
-                pointHoverRadius: 4,
+                pointHoverRadius: 6,
                 pointHoverBackgroundColor: '#fff',
-                pointHitRadius: 8,
-                tension: 0.3,
-                order: 2
-            });
-        }
-
-        if (wscData.length > 0) {
-            datasets.push({
-                label: 'WSC Realtime',
-                data: wscData,
-                borderColor: WSC_COLOR,
-                backgroundColor: function (ctx) {
-                    if (!ctx.chart.chartArea) return 'rgba(56,189,248,0.15)';
-                    var g = ctx.chart.ctx.createLinearGradient(0, ctx.chart.chartArea.top, 0, ctx.chart.chartArea.bottom);
-                    g.addColorStop(0, 'rgba(56,189,248,0.20)');
-                    g.addColorStop(1, 'rgba(56,189,248,0.02)');
-                    return g;
+                pointHoverBorderWidth: 2.5,
+                pointHoverBorderColor: function (ctx) {
+                    if (!ctx.raw) return COLORS.normal;
+                    return COLORS[getZone(ctx.raw.y, th)];
                 },
-                fill: true,
-                borderWidth: 2,
-                pointRadius: 0,
-                pointHoverRadius: 4,
-                pointHoverBackgroundColor: WSC_COLOR,
-                pointHitRadius: 8,
-                tension: 0.3,
-                borderDash: [4, 2],
-                order: 3
+                pointHitRadius: 10,
+                tension: 0.35,
+                order: 1,
+                segment: {
+                    borderColor: function (ctx) {
+                        if (!ctx.p1 || !ctx.p1.parsed) return COLORS.normal;
+                        return COLORS[getZone(ctx.p1.parsed.y, th)];
+                    }
+                }
             });
         }
 
-        if (forecastData.length > 0) {
+        if (wscData.length) {
+            datasets.push({
+                label: 'WSC Gauge',
+                data: wscData,
+                borderColor: '#0e7490',
+                backgroundColor: '#0e7490',
+                borderWidth: 3,
+                borderDash: [6, 3],
+                fill: false,
+                pointRadius: function (ctx) {
+                    return ctx.dataIndex === ctx.dataset.data.length - 1 ? 5 : 1;
+                },
+                pointBackgroundColor: '#0e7490',
+                pointBorderColor: '#0e7490',
+                pointBorderWidth: 1,
+                pointHoverRadius: 6,
+                pointHitRadius: 10,
+                tension: 0.3,
+                spanGaps: true,
+                order: 0
+            });
+        }
+
+        if (forecastData.length) {
             datasets.push({
                 label: 'Forecast',
                 data: forecastData,
                 borderColor: FORECAST_COLOR,
-                borderDash: [8, 4],
-                backgroundColor: 'transparent',
+                borderDash: [8, 5],
+                borderWidth: 2.5,
                 fill: false,
-                borderWidth: 2,
                 pointRadius: 0,
-                pointHoverRadius: 4,
+                pointHoverRadius: 6,
                 pointHoverBackgroundColor: FORECAST_COLOR,
-                pointHitRadius: 8,
+                pointHitRadius: 10,
                 tension: 0.3,
-                order: 4
+                order: 3
             });
         }
 
-        // Chart
+        /* ── update gauge bar ── */
+        updateGauge(station);
+
+        /* ── create chart ── */
         chart = new Chart(canvasEl, {
             type: 'line',
             data: { datasets: datasets },
+            plugins: [zoneFillPlugin, crosshairPlugin, nowLinePlugin, thresholdTickPlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: { duration: 400, easing: 'easeOutQuart' },
+                animation: false,
                 interaction: { mode: 'nearest', axis: 'x', intersect: false },
-                layout: { padding: { top: 4, right: 8, bottom: 0, left: 4 } },
+                layout: { padding: { top: 8, right: 70, bottom: 4, left: 4 } },
                 scales: {
                     x: {
                         type: 'time',
@@ -197,41 +466,45 @@ var FloodChart = (function () {
                         time: {
                             unit: 'hour',
                             stepSize: 12,
-                            displayFormats: {
-                                hour: 'MMM d, ha',
-                                day: 'MMM d'
-                            },
+                            displayFormats: { hour: 'MMM d, ha', day: 'MMM d' },
                             tooltipFormat: 'MMM d, yyyy h:mm a'
                         },
                         grid: {
-                            color: 'rgba(255,255,255,0.06)',
-                            drawBorder: false
+                            color: 'rgba(0,0,0,0.04)',
+                            drawBorder: false,
+                            tickLength: 0
                         },
                         ticks: {
                             maxTicksLimit: 7,
-                            color: 'rgba(255,255,255,0.45)',
-                            font: { family: 'Inter', size: 11 },
-                            maxRotation: 0
-                        }
+                            color: '#94a3b8',
+                            font: { family: "'Inter', sans-serif", size: 12, weight: '500' },
+                            maxRotation: 0,
+                            padding: 8
+                        },
+                        border: { display: false }
                     },
                     y: {
                         min: yMin,
                         max: yMax,
                         title: {
                             display: true,
-                            text: 'metres',
-                            color: 'rgba(255,255,255,0.4)',
-                            font: { family: 'Inter', size: 11, weight: '600' }
+                            text: 'Water Level (m)',
+                            color: '#94a3b8',
+                            font: { family: "'Inter', sans-serif", size: 12, weight: '600' },
+                            padding: { bottom: 8 }
                         },
                         grid: {
-                            color: 'rgba(255,255,255,0.06)',
-                            drawBorder: false
+                            color: 'rgba(0,0,0,0.04)',
+                            drawBorder: false,
+                            tickLength: 0
                         },
                         ticks: {
-                            color: 'rgba(255,255,255,0.45)',
-                            font: { family: 'Inter', size: 11 },
+                            color: '#94a3b8',
+                            font: { family: "'Inter', sans-serif", size: 12 },
+                            padding: 8,
                             callback: function (v) { return v.toFixed(1); }
-                        }
+                        },
+                        border: { display: false }
                     }
                 },
                 plugins: {
@@ -240,42 +513,51 @@ var FloodChart = (function () {
                         position: 'top',
                         align: 'end',
                         labels: {
-                            boxWidth: 12,
-                            boxHeight: 3,
-                            padding: 14,
+                            boxWidth: 14,
+                            boxHeight: 2,
+                            padding: 16,
                             usePointStyle: false,
-                            font: { family: 'Inter', size: 11, weight: '500' },
-                            color: 'rgba(255,255,255,0.7)'
+                            font: { family: "'Inter', sans-serif", size: 12, weight: '600' },
+                            color: '#64748b'
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(15,23,42,0.90)',
-                        titleColor: 'rgba(255,255,255,0.7)',
-                        bodyColor: '#fff',
-                        borderColor: 'rgba(255,255,255,0.1)',
+                        enabled: true,
+                        backgroundColor: '#ffffff',
+                        titleColor: '#94a3b8',
+                        bodyColor: '#0f172a',
+                        borderColor: '#e2e8f0',
                         borderWidth: 1,
-                        cornerRadius: 8,
-                        padding: 10,
-                        titleFont: { family: 'Inter', size: 11 },
-                        bodyFont: { family: 'Inter', size: 13, weight: '600' },
+                        cornerRadius: 10,
+                        padding: { top: 10, bottom: 10, left: 14, right: 14 },
+                        titleFont: { family: "'Inter', sans-serif", size: 12, weight: '500' },
+                        bodyFont:  { family: "'Inter', sans-serif", size: 14, weight: '700' },
                         displayColors: true,
                         boxWidth: 8,
                         boxHeight: 8,
                         boxPadding: 4,
+                        usePointStyle: true,
+                        caretSize: 6,
                         callbacks: {
                             label: function (ctx) {
                                 var v = ctx.parsed.y;
-                                return ' ' + ctx.dataset.label + ':  ' + (v != null ? v.toFixed(2) + ' m' : '\u2014');
+                                return ' ' + ctx.dataset.label + ':  ' +
+                                       (v != null ? v.toFixed(2) + ' m' : '\u2014');
                             }
                         }
                     },
-                    annotation: { annotations: annotations }
+                    annotation: { annotations: {} }
                 }
             }
         });
+
+        /* store metadata for custom plugins */
+        chart._thresholds    = th;
+        chart._nowTime       = now;
+        chart._measuredIndex = measuredIndex;
     }
 
-    // ── Filter readings to visible time window ──
+    /* ── filter readings to visible window ── */
 
     function filterToWindow(readings, xMin, xMax) {
         if (!readings || !readings.length) return [];
@@ -287,85 +569,6 @@ var FloodChart = (function () {
             }
         }
         return pts;
-    }
-
-    // ── Annotations (threshold lines + zone bands + "now" line) ──
-
-    function buildAnnotations(thresholds, yMin, yMax, now) {
-        var annotations = {};
-
-        // Threshold lines — clean, labeled on the left
-        var defs = [
-            { key: 'advisory', label: 'ADVISORY', color: THRESHOLD_COLORS.advisory },
-            { key: 'watch',    label: 'WATCH',    color: THRESHOLD_COLORS.watch },
-            { key: 'warning',  label: 'WARNING',  color: THRESHOLD_COLORS.warning },
-            { key: 'flood',    label: 'FLOOD',    color: THRESHOLD_COLORS.flood },
-            { key: 'record',   label: 'RECORD',   color: THRESHOLD_COLORS.record }
-        ];
-
-        defs.forEach(function (def) {
-            var val = thresholds[def.key];
-            if (val == null) return;
-            var isDashed = def.key === 'record';
-            annotations['line_' + def.key] = {
-                type: 'line',
-                yMin: val, yMax: val,
-                borderColor: def.color,
-                borderWidth: isDashed ? 1.5 : 2,
-                borderDash: isDashed ? [6, 4] : [],
-                label: {
-                    display: true,
-                    content: def.label,
-                    position: 'start',
-                    backgroundColor: def.color,
-                    color: def.key === 'watch' ? '#1a1a2e' : '#fff',
-                    font: { family: 'Inter', size: 9, weight: '700' },
-                    padding: { left: 5, right: 5, top: 2, bottom: 2 },
-                    borderRadius: 3
-                }
-            };
-        });
-
-        // Zone bands — very subtle
-        var zones = [
-            { key: 'normal',   from: yMin,                to: thresholds.advisory, color: ZONE_ALPHAS.normal },
-            { key: 'advisory', from: thresholds.advisory,  to: thresholds.watch,    color: ZONE_ALPHAS.advisory },
-            { key: 'watch',    from: thresholds.watch,     to: thresholds.warning,  color: ZONE_ALPHAS.watch },
-            { key: 'warning',  from: thresholds.warning,   to: thresholds.flood,    color: ZONE_ALPHAS.warning },
-            { key: 'flood',    from: thresholds.flood,     to: yMax,                color: ZONE_ALPHAS.flood }
-        ];
-
-        zones.forEach(function (z) {
-            if (z.from == null || z.to == null) return;
-            annotations['zone_' + z.key] = {
-                type: 'box',
-                yMin: z.from, yMax: z.to,
-                backgroundColor: z.color,
-                borderWidth: 0,
-                drawTime: 'beforeDatasetsDraw'
-            };
-        });
-
-        // Vertical "Now" line — always shown since chart is anchored to today
-        annotations['now_line'] = {
-            type: 'line',
-            xMin: now, xMax: now,
-            borderColor: 'rgba(255,255,255,0.5)',
-            borderWidth: 1.5,
-            borderDash: [4, 3],
-            label: {
-                display: true,
-                content: 'NOW',
-                position: 'start',
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                color: 'rgba(255,255,255,0.8)',
-                font: { family: 'Inter', size: 9, weight: '700' },
-                padding: { left: 5, right: 5, top: 2, bottom: 2 },
-                borderRadius: 3
-            }
-        };
-
-        return annotations;
     }
 
     function destroy() {
