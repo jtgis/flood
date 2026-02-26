@@ -414,7 +414,7 @@ var FloodChart = (function () {
                 borderDash: [6, 3],
                 fill: false,
                 pointRadius: function (ctx) {
-                    return ctx.dataIndex === ctx.dataset.data.length - 1 ? 5 : 1;
+                    return ctx.dataIndex === ctx.dataset.data.length - 1 ? 5 : 0;
                 },
                 pointBackgroundColor: '#0e7490',
                 pointBorderColor: '#0e7490',
