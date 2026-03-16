@@ -16,7 +16,36 @@ var FloodMap = (function () {
 
     var NB_CENTER = [46.7, -66.2];
     var NB_BOUNDS = [[44.0, -69.5], [48.5, -62.0]];
-    var MARKER_RADIUS = 10;
+
+    /* alert level severity order (lowest → highest) */
+    var LEVEL_ORDER = ['nodata', 'normal', 'advisory', 'watch', 'warning', 'flood', 'record'];
+
+    /* marker diameter in px per alert level */
+    var MARKER_SIZES = {
+        nodata:   14,
+        normal:   16,
+        advisory: 19,
+        watch:    22,
+        warning:  25,
+        flood:    29,
+        record:   33
+    };
+
+    function highestLevel(childMarkers) {
+        var best = -1, bestLevel = 'nodata';
+        childMarkers.forEach(function (m) {
+            var idx = LEVEL_ORDER.indexOf(m._stationAlertLevel || 'nodata');
+            if (idx > best) { best = idx; bestLevel = m._stationAlertLevel || 'nodata'; }
+        });
+        return bestLevel;
+    }
+
+    function clusterSize(count) {
+        if (count >= 20) return 46;
+        if (count >= 10) return 40;
+        if (count >= 5)  return 35;
+        return 30;
+    }
 
     var COLORS = {
         normal:   '#3b82f6',
@@ -61,7 +90,26 @@ var FloodMap = (function () {
         });
 
         baseLayers.imagery.addTo(map);
-        markerGroup = L.layerGroup().addTo(map);
+
+        markerGroup = L.markerClusterGroup({
+            maxClusterRadius: 55,
+            showCoverageOnHover: false,
+            zoomToBoundsOnClick: true,
+            spiderfyOnMaxZoom: true,
+            iconCreateFunction: function (cluster) {
+                var children = cluster.getAllChildMarkers();
+                var level = highestLevel(children);
+                var color = COLORS[level] || COLORS.nodata;
+                var count = cluster.getChildCount();
+                var sz = clusterSize(count);
+                return L.divIcon({
+                    html: '<div class="flood-cluster" style="width:' + sz + 'px;height:' + sz + 'px;line-height:' + sz + 'px;background:' + color + '">' + count + '</div>',
+                    className: '',
+                    iconSize:   [sz, sz],
+                    iconAnchor: [sz / 2, sz / 2]
+                });
+            }
+        }).addTo(map);
 
         // Individual historical flood extent overlays (ArcGIS MapServer — all off by default)
         var floodServiceUrl = 'https://geonb.snb.ca/arcgis/rest/services/GeoNB_ENV_Historical_Floods/MapServer';
@@ -305,13 +353,15 @@ var FloodMap = (function () {
         stations.forEach(function (station) {
             if (station.lat == null || station.lng == null) return;
 
+            var sz = MARKER_SIZES[station.alertLevel] || MARKER_SIZES.normal;
             var icon = L.divIcon({
                 className: 'flood-marker ' + station.alertLevel,
-                iconSize: [MARKER_RADIUS * 2, MARKER_RADIUS * 2],
-                iconAnchor: [MARKER_RADIUS, MARKER_RADIUS]
+                iconSize:   [sz, sz],
+                iconAnchor: [sz / 2, sz / 2]
             });
 
             var marker = L.marker([station.lat, station.lng], { icon: icon });
+            marker._stationAlertLevel = station.alertLevel;
 
             var levelText = station.currentLevel != null
                 ? FloodUtils.round(station.currentLevel, 2) + ' m'
@@ -320,7 +370,7 @@ var FloodMap = (function () {
             marker.bindTooltip(
                 '<div class="popup-name">' + station.name + '</div>' +
                 '<div class="popup-level">' + levelText + '</div>',
-                { direction: 'top', offset: [0, -MARKER_RADIUS], className: 'station-tooltip' }
+                { direction: 'top', offset: [0, -(sz / 2)], className: 'station-tooltip' }
             );
 
             marker.on('click', function () {

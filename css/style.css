@@ -388,8 +388,8 @@ a { color: var(--c-normal); }
     bottom: calc(var(--bottom-h) + 12px);
     left: 50%;
     transform: translateX(-50%);
-    width: min(94vw, 900px);
-    max-height: 55vh;
+    width: min(62vw, 600px);
+    max-height: 85vh;
     z-index: var(--z-panel);
     background: #fff;
     border: 1px solid rgba(0,0,0,0.08);
@@ -516,8 +516,8 @@ a { color: var(--c-normal); }
 /* Chart */
 .sp-chart-wrap {
     flex: 1;
-    min-height: 180px;
-    max-height: 260px;
+    min-height: 300px;
+    max-height: 520px;
     padding: 0 12px;
     position: relative;
 }
@@ -537,21 +537,32 @@ a { color: var(--c-normal); }
 }
 .sp-thresholds {
     display: flex;
-    gap: 12px;
-    font-size: 13px;
+    gap: 4px;
+    font-size: 12px;
     flex-wrap: wrap;
+    align-items: center;
 }
 .sp-th {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 3px;
-    color: #64748b;
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    color: #fff;
+    white-space: nowrap;
 }
-.sp-th[data-level="advisory"] b { color: var(--c-advisory); }
-.sp-th[data-level="watch"]    b { color: var(--c-watch); }
-.sp-th[data-level="warning"]  b { color: var(--c-warning); }
-.sp-th[data-level="flood"]    b { color: var(--c-flood); }
-.sp-th[data-level="record"]   b { color: var(--c-record); }
+.sp-th b { font-weight: 700; color: inherit; }
+.sp-th[data-level="normal"]   { background: var(--c-normal); }
+.sp-th[data-level="advisory"] { background: var(--c-advisory); }
+.sp-th[data-level="watch"]    { background: var(--c-watch); }
+.sp-th[data-level="warning"]  { background: var(--c-warning); }
+.sp-th[data-level="flood"]    { background: var(--c-flood); }
+.sp-th[data-level="record"]   { background: var(--c-record); }
 
 .sp-wsc-link {
     font-size: 14px;
@@ -568,9 +579,10 @@ a { color: var(--c-normal); }
     transform: translateX(-50%);
     z-index: var(--z-bottom);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 30px;
-    padding: 15px 25px;
+    gap: 0;
+    padding: 10px 25px 12px;
     background: rgba(0,0,0,0.45);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
@@ -598,6 +610,39 @@ a { color: var(--c-normal); }
 }
 .bb-btn:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,.5); outline: none; }
 .bb-btn svg { flex-shrink: 0; margin-bottom: 2px; }
+
+.bb-divider {
+    width: 100%;
+    height: 1px;
+    background: rgba(255,255,255,0.2);
+    flex-shrink: 0;
+    margin: 6px 0;
+}
+.bb-stages {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 5px;
+    align-items: center;
+    justify-content: center;
+}
+.bb-buttons {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    align-items: center;
+    justify-content: space-around;
+}
+.bb-stage {
+    font-family: 'Inter', sans-serif;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #fff;
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
 
 /* ---------- Modals ---------- */
 .modal-overlay {
@@ -906,6 +951,27 @@ a { color: var(--c-normal); }
 .flood-marker.flood    { background: var(--c-flood); }
 .flood-marker.nodata   { background: var(--c-nodata); }
 
+/* Cluster bubble */
+.flood-cluster {
+    border-radius: 50%;
+    border: 2.5px solid rgba(255,255,255,0.85);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition);
+    text-align: center;
+}
+.flood-cluster:hover {
+    transform: scale(1.15);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+}
+
 /* Selected marker pulse */
 .flood-marker.selected {
     animation: marker-pulse 1.5s ease-in-out infinite;
@@ -979,7 +1045,7 @@ a { color: var(--c-normal); }
     .station-panel {
         width: calc(100vw - 16px);
         bottom: calc(var(--bottom-h) + 8px);
-        max-height: 60vh;
+        max-height: 80vh;
     }
 
     .bottom-bar { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); padding: 12px 20px; gap: 20px; }
