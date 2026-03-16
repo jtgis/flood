@@ -56,6 +56,12 @@ var FloodMap = (function () {
         nodata:   '#6b7280'
     };
 
+    function stageBubble(level) {
+        var color = COLORS[level] || COLORS.nodata;
+        var label = FloodAlerts.alertLabel(level);
+        return '<span class="popup-badge" style="background:' + color + '">' + label + '</span>';
+    }
+
     function init() {
         map = L.map('map', {
             center: NB_CENTER,
@@ -108,8 +114,55 @@ var FloodMap = (function () {
                     iconSize:   [sz, sz],
                     iconAnchor: [sz / 2, sz / 2]
                 });
-            }
+            }   // end iconCreateFunction
         }).addTo(map);
+
+        /* ── cluster hover tooltip ── */
+        var _clusterTooltip = null;
+
+        markerGroup.on('clustermouseover', function (e) {
+            var cluster = e.layer;
+            var children = cluster.getAllChildMarkers();
+            var level = highestLevel(children);
+
+            /* find the top-level station */
+            var topMarker = null;
+            var bestIdx = -1;
+            children.forEach(function (m) {
+                var idx = LEVEL_ORDER.indexOf(m._stationAlertLevel || 'nodata');
+                if (idx > bestIdx) { bestIdx = idx; topMarker = m; }
+            });
+
+            var topStation = topMarker ? topMarker._stationData : null;
+            var name  = topStation ? topStation.name : 'Unknown';
+            var lvl   = topStation ? topStation.currentLevel : null;
+            var levelText = lvl != null ? FloodUtils.round(lvl, 2) + ' m' : 'No data';
+            var alertLabel = level.charAt(0).toUpperCase() + level.slice(1);
+            var extra = children.length - 1;
+
+            var html =
+                '<div class="popup-name">' + name + '</div>' +
+                '<div class="popup-meta">' + stageBubble(level) + '<span class="popup-level">' + levelText + '</span></div>' +
+                (extra > 0 ? '<div class="popup-more">+' + extra + ' more station' + (extra > 1 ? 's' : '') + '</div>' : '');
+
+            _clusterTooltip = L.tooltip({
+                direction: 'top',
+                offset: [0, -10],
+                className: 'station-tooltip',
+                permanent: false
+            })
+            .setContent(html)
+            .setLatLng(cluster.getLatLng())
+            .addTo(map);
+        });
+
+        markerGroup.on('clustermouseout', function () {
+            if (_clusterTooltip) { map.removeLayer(_clusterTooltip); _clusterTooltip = null; }
+        });
+
+        markerGroup.on('clusterclick', function () {
+            if (_clusterTooltip) { map.removeLayer(_clusterTooltip); _clusterTooltip = null; }
+        });
 
         // Individual historical flood extent overlays (ArcGIS MapServer — all off by default)
         var floodServiceUrl = 'https://geonb.snb.ca/arcgis/rest/services/GeoNB_ENV_Historical_Floods/MapServer';
@@ -362,6 +415,7 @@ var FloodMap = (function () {
 
             var marker = L.marker([station.lat, station.lng], { icon: icon });
             marker._stationAlertLevel = station.alertLevel;
+            marker._stationData = station;
 
             var levelText = station.currentLevel != null
                 ? FloodUtils.round(station.currentLevel, 2) + ' m'
@@ -369,7 +423,7 @@ var FloodMap = (function () {
 
             marker.bindTooltip(
                 '<div class="popup-name">' + station.name + '</div>' +
-                '<div class="popup-level">' + levelText + '</div>',
+                '<div class="popup-meta">' + stageBubble(station.alertLevel) + '<span class="popup-level">' + levelText + '</span></div>',
                 { direction: 'top', offset: [0, -(sz / 2)], className: 'station-tooltip' }
             );
 

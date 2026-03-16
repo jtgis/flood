@@ -1017,8 +1017,21 @@ a { color: var(--c-normal); }
     font-size: 12px !important;
     box-shadow: var(--shadow-sm) !important;
 }
-.station-tooltip .popup-name { font-weight: 700; margin-bottom: 2px; }
-.station-tooltip .popup-level { font-size: 11px; opacity: 0.8; }
+.station-tooltip .popup-name { font-weight: 700; margin-bottom: 4px; }
+.station-tooltip .popup-meta { display: flex; align-items: center; gap: 6px; }
+.station-tooltip .popup-badge {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.station-tooltip .popup-level { font-size: 11px; opacity: 0.85; }
+.station-tooltip .popup-more { font-size: 10px; opacity: 0.6; margin-top: 3px; }
 .station-tooltip::before { border-top-color: rgba(0,0,0,0.45) !important; }
 .leaflet-tooltip-top::before { border-top-color: rgba(0,0,0,0.45) !important; }
 
