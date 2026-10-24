@@ -11,7 +11,7 @@ Real-time water level monitoring dashboard for New Brunswick rivers. A modern, g
 ## Features
 
 - **Live station markers** coloured by flood risk level (normal → advisory → watch → warning → flood)
-- **Water level charts** with observed data, FEWS-NB forecasts, and WSC real-time readings over a ±3 day window
+- **Water level charts** with observed data, FEWS-NB forecasts, and WSC real-time readings over a ±2 day window
 - **Historical flood extents** — toggle individual layers from 1973, 1976, 1987, 2008, and 2018 flood events
 - **NB province boundary** overlay with city/town labels (44 place names with zoom-dependent visibility)
 - **Glassmorphism UI** inspired by [nbfiremap.ca](https://nbfiremap.ca) — frosted glass panels, smooth animations
