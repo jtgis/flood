@@ -2,15 +2,15 @@
    alerts.js - Alert level calculation (with nodata support)
    ========================================================================== */
 
-var FloodAlerts = (function () {
+const FloodAlerts = (function () {
     'use strict';
 
     // Staleness threshold: readings older than this are considered stale
-    var STALE_HOURS = 48;
+    const STALE_HOURS = 48;
 
     // Names of the thresholds each station has (station.thresholds.advisory etc.),
     // ordered from the lowest water level to the highest.
-    var THRESHOLD_LEVELS = ['advisory', 'watch', 'warning', 'flood', 'record'];
+    const THRESHOLD_LEVELS = ['advisory', 'watch', 'warning', 'flood', 'record'];
 
     /**
      * Colour for each alert level, e.g. COLORS.flood === '#dc2626'.
@@ -18,10 +18,10 @@ var FloodAlerts = (function () {
      * the one place to change them. (The stylesheet is loaded in <head>, so
      * it is ready before this script runs.)
      */
-    var COLORS = {};
-    var rootStyle = getComputedStyle(document.documentElement);
-    ['normal', 'advisory', 'watch', 'warning', 'flood', 'record', 'nodata'].forEach(function (level) {
-        COLORS[level] = rootStyle.getPropertyValue('--c-' + level).trim();
+    const COLORS = {};
+    const rootStyle = getComputedStyle(document.documentElement);
+    ['normal', 'advisory', 'watch', 'warning', 'flood', 'record', 'nodata'].forEach(level => {
+        COLORS[level] = rootStyle.getPropertyValue(`--c-${level}`).trim();
     });
 
     /**
@@ -42,16 +42,16 @@ var FloodAlerts = (function () {
      * Returns true if data is stale or missing.
      */
     function isStale(readings) {
-        var last = FloodUtils.lastValidReading(readings);
+        const last = FloodUtils.lastValidReading(readings);
         if (!last || !last.dtime) return true;
-        var age = (Date.now() - last.dtime.getTime()) / 3600000;
-        return age > STALE_HOURS;
+        const ageHours = (Date.now() - last.dtime.getTime()) / 3600000;
+        return ageHours > STALE_HOURS;
     }
 
     /**
      * Alert priority (higher = more severe). Used for sorting by risk.
      */
-    var PRIORITY = {
+    const PRIORITY = {
         flood: 6,
         warning: 5,
         watch: 4,
@@ -68,10 +68,10 @@ var FloodAlerts = (function () {
      * Count alert levels across an array of station objects.
      */
     function countAlerts(stations) {
-        var counts = { normal: 0, advisory: 0, watch: 0, warning: 0, flood: 0, nodata: 0 };
-        stations.forEach(function (s) {
-            var lvl = s.alertLevel || 'nodata';
-            if (counts.hasOwnProperty(lvl)) counts[lvl]++;
+        const counts = { normal: 0, advisory: 0, watch: 0, warning: 0, flood: 0, nodata: 0 };
+        stations.forEach(s => {
+            const level = s.alertLevel || 'nodata';
+            if (level in counts) counts[level]++;
         });
         return counts;
     }
@@ -79,25 +79,18 @@ var FloodAlerts = (function () {
     /**
      * Get display label for an alert level
      */
+    const LABELS = {
+        normal: 'Normal',
+        advisory: 'Advisory',
+        watch: 'Watch',
+        warning: 'Warning',
+        flood: 'Flood',
+        nodata: 'No Data'
+    };
+
     function alertLabel(level) {
-        var labels = {
-            normal: 'Normal',
-            advisory: 'Advisory',
-            watch: 'Watch',
-            warning: 'Warning',
-            flood: 'Flood',
-            nodata: 'No Data'
-        };
-        return labels[level] || 'Unknown';
+        return LABELS[level] || 'Unknown';
     }
 
-    return {
-        getAlertLevel: getAlertLevel,
-        isStale: isStale,
-        alertPriority: alertPriority,
-        countAlerts: countAlerts,
-        alertLabel: alertLabel,
-        COLORS: COLORS,
-        THRESHOLD_LEVELS: THRESHOLD_LEVELS
-    };
+    return { getAlertLevel, isStale, alertPriority, countAlerts, alertLabel, COLORS, THRESHOLD_LEVELS };
 })();
