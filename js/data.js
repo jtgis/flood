@@ -103,9 +103,28 @@ var FloodData = (function () {
 
     // -- Parse FEWS export XML --
 
+    /**
+     * Convert the FEWS <timeZone> value (hours offset from UTC, e.g. "-4.0")
+     * into an ISO 8601 offset string such as "-04:00".
+     * FEWS times have no offset of their own, so without this the browser
+     * would treat them as the viewer's local time.
+     */
+    function fewsOffset(doc) {
+        var tzEl = doc.getElementsByTagName('timeZone')[0];
+        var hours = tzEl ? parseFloat(tzEl.textContent) : 0;   // FEWS default is GMT
+        if (isNaN(hours)) hours = 0;
+
+        var sign = hours < 0 ? '-' : '+';
+        var totalMinutes = Math.round(Math.abs(hours) * 60);
+        var hh = Math.floor(totalMinutes / 60);
+        var mm = totalMinutes % 60;
+        return sign + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+    }
+
     function parseFEWS(doc, stations) {
         var seriesList = doc.getElementsByTagName('series');
         var creationDate = null;
+        var tzOffset = fewsOffset(doc);
 
         for (var s = 0; s < seriesList.length; s++) {
             var series = seriesList[s];
@@ -139,7 +158,7 @@ var FloodData = (function () {
                 var dateStr = ev.getAttribute('date');
                 var timeStr = ev.getAttribute('time');
                 var val = parseFloat(ev.getAttribute('value'));
-                var dt = new Date(dateStr + 'T' + timeStr);
+                var dt = new Date(dateStr + 'T' + timeStr + tzOffset);
                 readings.push({ dtime: dt, wlvl: (val === -999 ? null : val) });
             }
 
