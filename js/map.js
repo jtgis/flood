@@ -2,22 +2,22 @@
    map.js - Leaflet map with glassmorphism markers + basemap switch
    ========================================================================== */
 
-var FloodMap = (function () {
+const FloodMap = (function () {
     'use strict';
 
-    var map = null;
-    var markers = [];
-    var markerGroup = null;
-    var baseLayers = {};
-    var currentBase = 'imagery';
-    var overlayLayers = {};
-    var showNoData = false;
+    let map = null;
+    let markers = [];          // [{ marker, station }] for every station with a location
+    let markerGroup = null;
+    const baseLayers = {};
+    let currentBase = 'imagery';
+    const overlayLayers = {};
+    let showNoData = false;
 
-    var NB_CENTER = [46.7, -66.2];
-    var NB_BOUNDS = [[44.0, -69.5], [48.5, -62.0]];
+    const NB_CENTER = [46.7, -66.2];
+    const NB_BOUNDS = [[44.0, -69.5], [48.5, -62.0]];
 
     /* marker diameter in px per alert level */
-    var MARKER_SIZES = {
+    const MARKER_SIZES = {
         nodata:   14,
         normal:   16,
         advisory: 19,
@@ -26,14 +26,16 @@ var FloodMap = (function () {
         flood:    29
     };
 
+    const COLORS = FloodAlerts.COLORS;
+
     /**
      * From a cluster's markers, return the station with the most severe
      * alert level. The cluster is coloured and labelled after this station.
      */
     function mostSevereStation(childMarkers) {
-        var top = childMarkers[0]._stationData;
-        childMarkers.forEach(function (m) {
-            var station = m._stationData;
+        let top = childMarkers[0]._stationData;
+        childMarkers.forEach(m => {
+            const station = m._stationData;
             if (FloodAlerts.alertPriority(station.alertLevel) > FloodAlerts.alertPriority(top.alertLevel)) {
                 top = station;
             }
@@ -41,6 +43,7 @@ var FloodMap = (function () {
         return top;
     }
 
+    // Cluster circle diameter in px: bigger clusters get bigger circles
     function clusterSize(count) {
         if (count >= 20) return 46;
         if (count >= 10) return 40;
@@ -48,12 +51,20 @@ var FloodMap = (function () {
         return 30;
     }
 
-    var COLORS = FloodAlerts.COLORS;
-
+    // Coloured "Normal" / "Flood" / ... badge used in the hover tooltips
     function stageBubble(level) {
-        var color = COLORS[level] || COLORS.nodata;
-        var label = FloodAlerts.alertLabel(level);
-        return '<span class="popup-badge" style="background:' + color + '">' + label + '</span>';
+        const color = COLORS[level] || COLORS.nodata;
+        return `<span class="popup-badge" style="background:${color}">${FloodAlerts.alertLabel(level)}</span>`;
+    }
+
+    // Hover tooltip for a station: name, alert badge and current level
+    function stationTooltipHtml(station) {
+        const levelText = station.currentLevel != null
+            ? `${FloodUtils.round(station.currentLevel, 2)} m`
+            : 'No data';
+        return `
+            <div class="popup-name">${FloodUtils.escapeHtml(station.name)}</div>
+            <div class="popup-meta">${stageBubble(station.alertLevel)}<span class="popup-level">${levelText}</span></div>`;
     }
 
     function init() {
@@ -68,7 +79,7 @@ var FloodMap = (function () {
         // Fit to NB bounds (same as nbfiremap's fitProvinceToView)
         map.fitBounds(NB_BOUNDS);
 
-        // NB province boundary (GeoNB Health Regions outline)
+        // NB province outline
         map.createPane('nbBoundaryPane').style.zIndex = 405;
         fetchNBBoundary();
 
@@ -96,37 +107,41 @@ var FloodMap = (function () {
             showCoverageOnHover: false,
             zoomToBoundsOnClick: true,
             spiderfyOnMaxZoom: true,
-            iconCreateFunction: function (cluster) {
-                var level = mostSevereStation(cluster.getAllChildMarkers()).alertLevel;
-                var color = COLORS[level] || COLORS.nodata;
-                var count = cluster.getChildCount();
-                var sz = clusterSize(count);
+            iconCreateFunction: cluster => {
+                const level = mostSevereStation(cluster.getAllChildMarkers()).alertLevel;
+                const color = COLORS[level] || COLORS.nodata;
+                const count = cluster.getChildCount();
+                const size = clusterSize(count);
                 return L.divIcon({
-                    html: '<div class="flood-cluster" style="width:' + sz + 'px;height:' + sz + 'px;line-height:' + sz + 'px;background:' + color + '">' + count + '</div>',
+                    html: `<div class="flood-cluster" style="width:${size}px;height:${size}px;line-height:${size}px;background:${color}">${count}</div>`,
                     className: '',
-                    iconSize:   [sz, sz],
-                    iconAnchor: [sz / 2, sz / 2]
+                    iconSize:   [size, size],
+                    iconAnchor: [size / 2, size / 2]
                 });
-            }   // end iconCreateFunction
+            }
         }).addTo(map);
 
         /* ── cluster hover tooltip ── */
-        var _clusterTooltip = null;
+        let clusterTooltip = null;
 
-        markerGroup.on('clustermouseover', function (e) {
-            var cluster = e.layer;
-            var children = cluster.getAllChildMarkers();
-            var topStation = mostSevereStation(children);
-            var lvl = topStation.currentLevel;
-            var levelText = lvl != null ? FloodUtils.round(lvl, 2) + ' m' : 'No data';
-            var extra = children.length - 1;
+        function removeClusterTooltip() {
+            if (clusterTooltip) {
+                map.removeLayer(clusterTooltip);
+                clusterTooltip = null;
+            }
+        }
 
-            var html =
-                '<div class="popup-name">' + FloodUtils.escapeHtml(topStation.name) + '</div>' +
-                '<div class="popup-meta">' + stageBubble(topStation.alertLevel) + '<span class="popup-level">' + levelText + '</span></div>' +
-                (extra > 0 ? '<div class="popup-more">+' + extra + ' more station' + (extra > 1 ? 's' : '') + '</div>' : '');
+        markerGroup.on('clustermouseover', e => {
+            const cluster = e.layer;
+            const children = cluster.getAllChildMarkers();
+            const extra = children.length - 1;
 
-            _clusterTooltip = L.tooltip({
+            let html = stationTooltipHtml(mostSevereStation(children));
+            if (extra > 0) {
+                html += `<div class="popup-more">+${extra} more station${extra > 1 ? 's' : ''}</div>`;
+            }
+
+            clusterTooltip = L.tooltip({
                 direction: 'top',
                 offset: [0, -10],
                 className: 'station-tooltip',
@@ -137,17 +152,12 @@ var FloodMap = (function () {
             .addTo(map);
         });
 
-        markerGroup.on('clustermouseout', function () {
-            if (_clusterTooltip) { map.removeLayer(_clusterTooltip); _clusterTooltip = null; }
-        });
-
-        markerGroup.on('clusterclick', function () {
-            if (_clusterTooltip) { map.removeLayer(_clusterTooltip); _clusterTooltip = null; }
-        });
+        markerGroup.on('clustermouseout', removeClusterTooltip);
+        markerGroup.on('clusterclick', removeClusterTooltip);
 
         // Individual historical flood extent overlays (ArcGIS MapServer — all off by default)
-        var floodServiceUrl = 'https://geonb.snb.ca/arcgis/rest/services/GeoNB_ENV_Historical_Floods/MapServer';
-        var floodLayerDefs = [
+        const floodServiceUrl = 'https://geonb.snb.ca/arcgis/rest/services/GeoNB_ENV_Historical_Floods/MapServer';
+        const floodLayerDefs = [
             { key: 'flood_8',  ids: [8], label: '1973 Flood Limits' },
             { key: 'flood_0',  ids: [0], label: '2008 & 2018 Flood Limits' },
             { key: 'flood_1',  ids: [1], label: '1976 Ice Jam – Perth-Andover' },
@@ -159,7 +169,7 @@ var FloodMap = (function () {
         ];
         // esri-leaflet asks the ArcGIS server for one image of the current view
         // and re-requests it whenever the map is panned or zoomed.
-        floodLayerDefs.forEach(function (def) {
+        floodLayerDefs.forEach(def => {
             overlayLayers[def.key] = L.esri.dynamicMapLayer({
                 url: floodServiceUrl,
                 layers: def.ids,
@@ -172,27 +182,27 @@ var FloodMap = (function () {
 
     // -- NB Province Boundary --
 
-    function fetchNBBoundary() {
-        var url = 'https://services6.arcgis.com/MgHatnn8VBHh0mIt/ArcGIS/rest/services/Canada_Province_Boundary/FeatureServer/2/query'
+    // Draws the New Brunswick outline from Esri's Canada province boundaries
+    // (simplified to ~500 m so it downloads quickly)
+    async function fetchNBBoundary() {
+        const url = 'https://services6.arcgis.com/MgHatnn8VBHh0mIt/ArcGIS/rest/services/Canada_Province_Boundary/FeatureServer/2/query'
             + '?where=PRENAME%3D%27New%20Brunswick%27&outFields=PRENAME&outSR=4326&returnGeometry=true&f=geojson'
             + '&maxAllowableOffset=0.005&geometryPrecision=4';
-        fetch(url)
-            .then(function (r) { return r.json(); })
-            .then(function (geojson) {
-                L.geoJSON(geojson, {
-                    pane: 'nbBoundaryPane',
-                    style: { color: '#0b0f19', weight: 3, fill: false, opacity: 0.8 },
-                    interactive: false
-                }).addTo(map);
-            })
-            .catch(function (err) {
-                console.warn('NB boundary fetch failed:', err);
-            });
+        try {
+            const geojson = await (await fetch(url)).json();
+            L.geoJSON(geojson, {
+                pane: 'nbBoundaryPane',
+                style: { color: '#0b0f19', weight: 3, fill: false, opacity: 0.8 },
+                interactive: false
+            }).addTo(map);
+        } catch (err) {
+            console.warn('NB boundary fetch failed:', err);
+        }
     }
 
     // -- City / Town Labels (same list as nbfiremap.ca) --
 
-    var CITY_DATA = [
+    const CITY_DATA = [
         // [name, lat, lng, population]
         // Major (≥50k) — zoom 6+
         ['Moncton', 46.0878, -64.7782, 79000],
@@ -251,6 +261,7 @@ var FloodMap = (function () {
         ['Doaktown', 46.5550, -66.1180, 800]
     ];
 
+    // The zoom level at which a city's label starts to show (bigger = later)
     function getCityZoomThreshold(pop) {
         if (pop >= 50000) return 6;
         if (pop >= 15000) return 7;
@@ -259,20 +270,18 @@ var FloodMap = (function () {
         return 10;
     }
 
-    var cityMarkers = [];
+    const cityMarkers = [];
 
     function addCityLabels() {
-        CITY_DATA.forEach(function (c) {
-            var name = c[0], lat = c[1], lng = c[2], pop = c[3];
-            var icon = L.divIcon({ className: 'city-marker-icon', iconSize: [0, 0] });
-            var marker = L.marker([lat, lng], {
-                icon: icon,
+        CITY_DATA.forEach(([name, lat, lng, pop]) => {
+            const marker = L.marker([lat, lng], {
+                icon: L.divIcon({ className: 'city-marker-icon', iconSize: [0, 0] }),
                 pane: 'cityLabelsPane',
                 interactive: false,
                 zIndexOffset: 1000
             });
             marker.bindTooltip(
-                '<span class="city-label">' + name + '</span>',
+                `<span class="city-label">${name}</span>`,
                 { permanent: true, direction: 'top', className: 'city-label-tooltip', offset: [0, 2] }
             );
             marker._cityPop = pop;
@@ -286,30 +295,23 @@ var FloodMap = (function () {
     }
 
     function updateCityVisibility() {
-        var zoom = map.getZoom();
-        var visible = [];
+        const zoom = map.getZoom();
 
-        // Gather labels that should show at this zoom
-        cityMarkers.forEach(function (m) {
-            if (zoom >= m._cityThreshold) {
-                visible.push(m);
-            } else if (map.hasLayer(m)) {
-                map.removeLayer(m);
-            }
+        // Labels that should show at this zoom; hide the rest
+        const visible = cityMarkers.filter(m => {
+            if (zoom >= m._cityThreshold) return true;
+            if (map.hasLayer(m)) map.removeLayer(m);
+            return false;
         });
 
         // Sort by population desc so larger cities take priority
-        visible.sort(function (a, b) { return b._cityPop - a._cityPop; });
+        visible.sort((a, b) => b._cityPop - a._cityPop);
 
-        // Pixel-clustering: hide smaller cities that overlap a larger one (80px threshold)
-        var placed = [];
-        visible.forEach(function (m) {
-            var pt = map.latLngToContainerPoint(m.getLatLng());
-            var tooClose = false;
-            for (var i = 0; i < placed.length; i++) {
-                var d = pt.distanceTo(placed[i]);
-                if (d < 80) { tooClose = true; break; }
-            }
+        // Hide smaller cities whose label would be within 80px of a larger one's
+        const placed = [];
+        visible.forEach(m => {
+            const pt = map.latLngToContainerPoint(m.getLatLng());
+            const tooClose = placed.some(other => pt.distanceTo(other) < 80);
             if (tooClose) {
                 if (map.hasLayer(m)) map.removeLayer(m);
             } else {
@@ -330,30 +332,26 @@ var FloodMap = (function () {
         markerGroup.clearLayers();
         markers = [];
 
-        stations.forEach(function (station) {
+        stations.forEach(station => {
             if (station.lat == null || station.lng == null) return;
 
-            var sz = MARKER_SIZES[station.alertLevel] || MARKER_SIZES.normal;
-            var icon = L.divIcon({
-                className: 'flood-marker ' + station.alertLevel,
-                iconSize:   [sz, sz],
-                iconAnchor: [sz / 2, sz / 2]
+            const size = MARKER_SIZES[station.alertLevel] || MARKER_SIZES.normal;
+            const marker = L.marker([station.lat, station.lng], {
+                icon: L.divIcon({
+                    className: `flood-marker ${station.alertLevel}`,
+                    iconSize:   [size, size],
+                    iconAnchor: [size / 2, size / 2]
+                })
+            });
+            marker._stationData = station;   // read back by mostSevereStation()
+
+            marker.bindTooltip(stationTooltipHtml(station), {
+                direction: 'top',
+                offset: [0, -(size / 2)],
+                className: 'station-tooltip'
             });
 
-            var marker = L.marker([station.lat, station.lng], { icon: icon });
-            marker._stationData = station;
-
-            var levelText = station.currentLevel != null
-                ? FloodUtils.round(station.currentLevel, 2) + ' m'
-                : 'No data';
-
-            marker.bindTooltip(
-                '<div class="popup-name">' + FloodUtils.escapeHtml(station.name) + '</div>' +
-                '<div class="popup-meta">' + stageBubble(station.alertLevel) + '<span class="popup-level">' + levelText + '</span></div>',
-                { direction: 'top', offset: [0, -(sz / 2)], className: 'station-tooltip' }
-            );
-
-            marker.on('click', function () {
+            marker.on('click', () => {
                 if (typeof onStationClick === 'function') onStationClick(station);
             });
 
@@ -361,12 +359,12 @@ var FloodMap = (function () {
             if (station.alertLevel !== 'nodata' || showNoData) {
                 marker.addTo(markerGroup);
             }
-            markers.push({ marker: marker, station: station });
+            markers.push({ marker, station });
         });
     }
 
     function toggleOverlay(key, visible) {
-        var layer = overlayLayers[key];
+        const layer = overlayLayers[key];
         if (!layer) return;
         if (visible) {
             layer.addTo(map);
@@ -377,13 +375,12 @@ var FloodMap = (function () {
 
     function setShowNoData(val) {
         showNoData = val;
-        markers.forEach(function (m) {
-            if (m.station.alertLevel === 'nodata') {
-                if (val) {
-                    if (!markerGroup.hasLayer(m.marker)) m.marker.addTo(markerGroup);
-                } else {
-                    markerGroup.removeLayer(m.marker);
-                }
+        markers.forEach(({ marker, station }) => {
+            if (station.alertLevel !== 'nodata') return;
+            if (val) {
+                if (!markerGroup.hasLayer(marker)) marker.addTo(markerGroup);
+            } else {
+                markerGroup.removeLayer(marker);
             }
         });
     }
@@ -394,16 +391,12 @@ var FloodMap = (function () {
     }
 
     function highlightStation(stationID) {
-        markers.forEach(function (m) {
-            var el = m.marker.getElement();
-            if (!el) return;
-            if (m.station.stationID === stationID) {
-                el.classList.add('selected');
-                el.style.zIndex = '1000';
-            } else {
-                el.classList.remove('selected');
-                el.style.zIndex = '';
-            }
+        markers.forEach(({ marker, station }) => {
+            const el = marker.getElement();
+            if (!el) return;   // marker is inside a cluster right now
+            const isSelected = station.stationID === stationID;
+            el.classList.toggle('selected', isSelected);
+            el.style.zIndex = isSelected ? '1000' : '';
         });
     }
 
@@ -415,16 +408,16 @@ var FloodMap = (function () {
     function zoomOut() { if (map) map.zoomOut(); }
 
     return {
-        init: init,
-        setStations: setStations,
-        flyTo: flyTo,
-        highlightStation: highlightStation,
-        resetView: resetView,
-        zoomIn: zoomIn,
-        zoomOut: zoomOut,
-        switchBasemap: switchBasemap,
-        toggleOverlay: toggleOverlay,
-        setShowNoData: setShowNoData,
-        getMap: function () { return map; }
+        init,
+        setStations,
+        flyTo,
+        highlightStation,
+        resetView,
+        zoomIn,
+        zoomOut,
+        switchBasemap,
+        toggleOverlay,
+        setShowNoData,
+        getMap: () => map
     };
 })();
