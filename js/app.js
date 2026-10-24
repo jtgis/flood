@@ -101,14 +101,12 @@
             trend.direction.charAt(0).toUpperCase() + trend.direction.slice(1) +
             (trend.rate > 0 ? ' (' + trend.rate + ' m/hr)' : '');
 
+        // Last reading time in the viewer's time zone, e.g. "Oct 23, 9:05 PM"
         var issuedText = '\u2014';
         if (station.lastReadingTime) {
-            var d = station.lastReadingTime;
-            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            issuedText = months[d.getMonth()] + ' ' + d.getDate() + ', ' +
-                         ((d.getHours() % 12) || 12) + ':' +
-                         (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + ' ' +
-                         (d.getHours() >= 12 ? 'PM' : 'AM');
+            issuedText = station.lastReadingTime.toLocaleString('en-US', {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            });
         }
         document.getElementById('panel-issued').textContent = issuedText;
 
