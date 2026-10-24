@@ -16,9 +16,6 @@ var FloodMap = (function () {
     var NB_CENTER = [46.7, -66.2];
     var NB_BOUNDS = [[44.0, -69.5], [48.5, -62.0]];
 
-    /* alert level severity order (lowest → highest) */
-    var LEVEL_ORDER = ['nodata', 'normal', 'advisory', 'watch', 'warning', 'flood'];
-
     /* marker diameter in px per alert level */
     var MARKER_SIZES = {
         nodata:   14,
@@ -29,13 +26,19 @@ var FloodMap = (function () {
         flood:    29
     };
 
-    function highestLevel(childMarkers) {
-        var best = -1, bestLevel = 'nodata';
+    /**
+     * From a cluster's markers, return the station with the most severe
+     * alert level. The cluster is coloured and labelled after this station.
+     */
+    function mostSevereStation(childMarkers) {
+        var top = childMarkers[0]._stationData;
         childMarkers.forEach(function (m) {
-            var idx = LEVEL_ORDER.indexOf(m._stationAlertLevel || 'nodata');
-            if (idx > best) { best = idx; bestLevel = m._stationAlertLevel || 'nodata'; }
+            var station = m._stationData;
+            if (FloodAlerts.alertPriority(station.alertLevel) > FloodAlerts.alertPriority(top.alertLevel)) {
+                top = station;
+            }
         });
-        return bestLevel;
+        return top;
     }
 
     function clusterSize(count) {
@@ -94,8 +97,7 @@ var FloodMap = (function () {
             zoomToBoundsOnClick: true,
             spiderfyOnMaxZoom: true,
             iconCreateFunction: function (cluster) {
-                var children = cluster.getAllChildMarkers();
-                var level = highestLevel(children);
+                var level = mostSevereStation(cluster.getAllChildMarkers()).alertLevel;
                 var color = COLORS[level] || COLORS.nodata;
                 var count = cluster.getChildCount();
                 var sz = clusterSize(count);
@@ -114,25 +116,14 @@ var FloodMap = (function () {
         markerGroup.on('clustermouseover', function (e) {
             var cluster = e.layer;
             var children = cluster.getAllChildMarkers();
-            var level = highestLevel(children);
-
-            /* find the top-level station */
-            var topMarker = null;
-            var bestIdx = -1;
-            children.forEach(function (m) {
-                var idx = LEVEL_ORDER.indexOf(m._stationAlertLevel || 'nodata');
-                if (idx > bestIdx) { bestIdx = idx; topMarker = m; }
-            });
-
-            var topStation = topMarker ? topMarker._stationData : null;
-            var name  = topStation ? topStation.name : 'Unknown';
-            var lvl   = topStation ? topStation.currentLevel : null;
+            var topStation = mostSevereStation(children);
+            var lvl = topStation.currentLevel;
             var levelText = lvl != null ? FloodUtils.round(lvl, 2) + ' m' : 'No data';
             var extra = children.length - 1;
 
             var html =
-                '<div class="popup-name">' + FloodUtils.escapeHtml(name) + '</div>' +
-                '<div class="popup-meta">' + stageBubble(level) + '<span class="popup-level">' + levelText + '</span></div>' +
+                '<div class="popup-name">' + FloodUtils.escapeHtml(topStation.name) + '</div>' +
+                '<div class="popup-meta">' + stageBubble(topStation.alertLevel) + '<span class="popup-level">' + levelText + '</span></div>' +
                 (extra > 0 ? '<div class="popup-more">+' + extra + ' more station' + (extra > 1 ? 's' : '') + '</div>' : '');
 
             _clusterTooltip = L.tooltip({
@@ -349,7 +340,6 @@ var FloodMap = (function () {
             });
 
             var marker = L.marker([station.lat, station.lng], { icon: icon });
-            marker._stationAlertLevel = station.alertLevel;
             marker._stationData = station;
 
             var levelText = station.currentLevel != null
