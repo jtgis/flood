@@ -2,35 +2,26 @@
    data.js - Fetch & parse all data sources (with stale data detection)
    ========================================================================== */
 
-var FloodData = (function () {
+const FloodData = (function () {
     'use strict';
 
-    var URLS = {
+    const URLS = {
         alertLevels: 'https://geonb.snb.ca/rwm/flood/alertlevels.xml',
         fewsExport:  'https://geonb.snb.ca/rwm/flood/StJohn_FEWSNB_export.xml',
         wscRealtime: 'https://api.weather.gc.ca/collections/hydrometric-realtime/items'
     };
 
-    function fetchXML(url) {
-        return fetch(url)
-            .then(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching ' + url);
-                return r.text();
-            })
-            .then(function (text) {
-                return new DOMParser().parseFromString(text, 'application/xml');
-            });
+    async function fetchXML(url) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status} fetching ${url}`);
+        const text = await response.text();
+        return new DOMParser().parseFromString(text, 'application/xml');
     }
 
     // -- Parse alert levels XML --
 
     function parseAlertLevels(doc) {
-        var stations = [];
-        var nodes = doc.getElementsByTagName('station');
-        for (var i = 0; i < nodes.length; i++) {
-            stations.push(parseAlertStation(nodes[i]));
-        }
-        return stations;
+        return Array.from(doc.getElementsByTagName('station'), parseAlertStation);
     }
 
     /**
@@ -39,14 +30,14 @@ var FloodData = (function () {
      * names: <Floodlvl> is the flood threshold and <max> is the record level.
      */
     function parseAlertStation(node) {
-        function getText(tag) {
-            var el = node.getElementsByTagName(tag)[0];
+        const getText = tag => {
+            const el = node.getElementsByTagName(tag)[0];
             return el ? el.textContent.trim() : '';
-        }
-        function getNum(tag) {
-            var v = parseFloat(getText(tag));
-            return isNaN(v) ? null : v;
-        }
+        };
+        const getNum = tag => {
+            const value = parseFloat(getText(tag));
+            return isNaN(value) ? null : value;
+        };
         return {
             name:       getText('name'),
             stationID:  getText('stationID'),
@@ -78,15 +69,15 @@ var FloodData = (function () {
      * would treat them as the viewer's local time.
      */
     function fewsOffset(doc) {
-        var tzEl = doc.getElementsByTagName('timeZone')[0];
-        var hours = tzEl ? parseFloat(tzEl.textContent) : 0;   // FEWS default is GMT
+        const tzEl = doc.getElementsByTagName('timeZone')[0];
+        let hours = tzEl ? parseFloat(tzEl.textContent) : 0;   // FEWS default is GMT
         if (isNaN(hours)) hours = 0;
 
-        var sign = hours < 0 ? '-' : '+';
-        var totalMinutes = Math.round(Math.abs(hours) * 60);
-        var hh = Math.floor(totalMinutes / 60);
-        var mm = totalMinutes % 60;
-        return sign + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+        const sign = hours < 0 ? '-' : '+';
+        const totalMinutes = Math.round(Math.abs(hours) * 60);
+        const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+        const mm = String(totalMinutes % 60).padStart(2, '0');
+        return `${sign}${hh}:${mm}`;
     }
 
     /**
@@ -95,61 +86,54 @@ var FloodData = (function () {
      *   HG   = observed river stage (m)  -> station.measures
      *   SSTG = simulated/forecast stage (m) -> station.forecasts
      * (It also has flow series, Q and SQIN, which the app does not use.)
+     * Returns the export's creation date (a 'YYYY-MM-DD' string) or null.
      */
     function parseFEWS(doc, stations) {
-        var seriesList = doc.getElementsByTagName('series');
-        var creationDate = null;
-        var tzOffset = fewsOffset(doc);
+        const tzOffset = fewsOffset(doc);
+        let creationDate = null;
 
-        for (var s = 0; s < seriesList.length; s++) {
-            var series = seriesList[s];
-            var header = series.getElementsByTagName('header')[0];
+        // Look stations up by ID instead of searching the list for every series
+        const stationsById = {};
+        stations.forEach(s => { stationsById[s.stationID] = s; });
+
+        for (const series of doc.getElementsByTagName('series')) {
+            const header = series.getElementsByTagName('header')[0];
             if (!header) continue;
 
-            var locationId = header.getElementsByTagName('locationId')[0];
-            var parameterId = header.getElementsByTagName('parameterId')[0];
-            if (!locationId || !parameterId) continue;
-
-            var locId = locationId.textContent.trim();
-            var paramId = parameterId.textContent.trim();
+            const locationEl = header.getElementsByTagName('locationId')[0];
+            const parameterEl = header.getElementsByTagName('parameterId')[0];
+            if (!locationEl || !parameterEl) continue;
 
             if (!creationDate) {
-                var cdEl = header.getElementsByTagName('creationDate')[0];
-                if (cdEl) creationDate = cdEl.textContent.trim();
+                const dateEl = header.getElementsByTagName('creationDate')[0];
+                if (dateEl) creationDate = dateEl.textContent.trim();
             }
 
+            const paramId = parameterEl.textContent.trim();
             if (paramId !== 'HG' && paramId !== 'SSTG') continue;
 
-            var station = null;
-            for (var i = 0; i < stations.length; i++) {
-                if (stations[i].stationID === locId) { station = stations[i]; break; }
-            }
+            const station = stationsById[locationEl.textContent.trim()];
             if (!station) continue;
 
-            var events = series.getElementsByTagName('event');
-            var readings = [];
-            for (var e = 0; e < events.length; e++) {
-                var ev = events[e];
-                var dateStr = ev.getAttribute('date');
-                var timeStr = ev.getAttribute('time');
-                var val = parseFloat(ev.getAttribute('value'));
-                var dt = new Date(dateStr + 'T' + timeStr + tzOffset);
-                readings.push({ dtime: dt, wlvl: (val === -999 ? null : val) });
-            }
+            const readings = Array.from(series.getElementsByTagName('event'), ev => {
+                const value = parseFloat(ev.getAttribute('value'));
+                return {
+                    dtime: new Date(`${ev.getAttribute('date')}T${ev.getAttribute('time')}${tzOffset}`),
+                    wlvl: value === -999 ? null : value     // -999 means "missing" in FEWS
+                };
+            });
 
             if (paramId === 'HG') {
                 station.measures = readings;
-            } else if (paramId === 'SSTG') {
+            } else {
                 station.forecasts = readings;
             }
         }
 
         // Compute current level, staleness, alert level, trend
-        stations.forEach(function (station) {
-            computeStationStatus(station);
-        });
+        stations.forEach(computeStationStatus);
 
-        return { stations: stations, creationDate: creationDate };
+        return creationDate;
     }
 
     /**
@@ -164,20 +148,20 @@ var FloodData = (function () {
     function computeStationStatus(station) {
         // 1. FEWS: the latest observed reading. If the station has no observed
         //    readings at all, use the first forecast value instead.
-        var fewsReading = FloodUtils.lastValidReading(station.measures) ||
-            station.forecasts.find(function (r) { return r.wlvl != null; }) ||
+        const fewsReading = FloodUtils.lastValidReading(station.measures) ||
+            station.forecasts.find(r => r.wlvl != null) ||
             null;
 
         // Note: a forecast-only station counts as fresh, because its last
         // forecast time is in the future.
-        var fewsStale = FloodAlerts.isStale(station.measures.length > 0 ? station.measures : station.forecasts);
+        const fewsStale = FloodAlerts.isStale(station.measures.length > 0 ? station.measures : station.forecasts);
 
         // 2. WSC: the latest gauge reading, if it is recent enough
-        var wscReading = FloodUtils.lastValidReading(station.wscMeasures);
-        var wscFresh = wscReading != null && !FloodAlerts.isStale(station.wscMeasures);
+        const wscReading = FloodUtils.lastValidReading(station.wscMeasures);
+        const wscFresh = wscReading != null && !FloodAlerts.isStale(station.wscMeasures);
 
         // 3. Pick the source to show
-        var reading;
+        let reading;
         if ((fewsStale || !fewsReading) && wscFresh) {
             reading = wscReading;
             station.isStale = false;
@@ -211,77 +195,61 @@ var FloodData = (function () {
      */
     function extractWSCId(wscUrl) {
         if (!wscUrl || wscUrl === 'NONE') return null;
-        var m = wscUrl.match(/stn=([A-Z0-9]+)/i);
-        return m ? m[1] : null;
+        const match = wscUrl.match(/stn=([A-Z0-9]+)/i);
+        return match ? match[1] : null;
     }
 
     // How far back to fetch WSC readings. Matches the chart's 48h look-back;
     // anything older would count as stale (FloodAlerts STALE_HOURS) anyway.
-    var WSC_HISTORY_HOURS = 48;
+    const WSC_HISTORY_HOURS = 48;
 
     /**
      * Fetch the last WSC_HISTORY_HOURS of realtime water-level data for a
      * single WSC station.
      * Returns an array of { dtime, wlvl } readings sorted chronologically.
      */
-    function fetchWSCStation(stnNumber) {
-        var since = new Date(Date.now() - WSC_HISTORY_HOURS * 3600000).toISOString();
-        var url = URLS.wscRealtime
-            + '?STATION_NUMBER=' + stnNumber
-            + '&datetime=' + since + '/..'           // only readings from 'since' onward
-            + '&properties=DATETIME,LEVEL'           // only the two fields we use...
-            + '&skipGeometry=true'                   // ...and not the station location
-            + '&limit=2000'
-            + '&sortby=-DATETIME'
-            + '&f=json';
+    async function fetchWSCStation(stnNumber) {
+        const since = new Date(Date.now() - WSC_HISTORY_HOURS * 3600000).toISOString();
+        const params = new URLSearchParams({
+            STATION_NUMBER: stnNumber,
+            datetime: `${since}/..`,            // only readings from 'since' onward
+            properties: 'DATETIME,LEVEL',       // only the two fields we use...
+            skipGeometry: 'true',               // ...and not the station location
+            limit: '2000',
+            sortby: '-DATETIME',
+            f: 'json'
+        });
 
-        return fetch(url)
-            .then(function (r) {
-                if (!r.ok) throw new Error('WSC HTTP ' + r.status);
-                return r.json();
-            })
-            .then(function (geojson) {
-                var readings = [];
-                if (geojson && geojson.features) {
-                    geojson.features.forEach(function (f) {
-                        var p = f.properties;
-                        if (p && p.DATETIME && p.LEVEL != null) {
-                            readings.push({
-                                dtime: new Date(p.DATETIME),
-                                wlvl: parseFloat(p.LEVEL)
-                            });
-                        }
-                    });
-                }
-                // Sort chronologically (API returns newest-first)
-                readings.sort(function (a, b) { return a.dtime - b.dtime; });
-                return readings;
-            });
+        const response = await fetch(`${URLS.wscRealtime}?${params}`);
+        if (!response.ok) throw new Error(`WSC HTTP ${response.status}`);
+        const geojson = await response.json();
+
+        const readings = (geojson.features || [])
+            .map(f => f.properties)
+            .filter(p => p && p.DATETIME && p.LEVEL != null)
+            .map(p => ({ dtime: new Date(p.DATETIME), wlvl: parseFloat(p.LEVEL) }));
+
+        // Sort chronologically (API returns newest-first)
+        readings.sort((a, b) => a.dtime - b.dtime);
+        return readings;
     }
 
     /**
-     * Fetch WSC realtime data for all stations that have a WSC URL.
-     * Runs in parallel (max ~25 stations). Failures are silently ignored.
+     * Fetch WSC realtime data for all stations that have a WSC URL, in
+     * parallel (about 25 stations). Sets station.wscMeasures on success;
+     * a failed request is ignored and that station just has no WSC data.
      */
     function fetchAllWSC(stations) {
-        var promises = stations.map(function (station) {
-            var stnId = extractWSCId(station.wscUrlEn);
-            if (!stnId) return Promise.resolve(null);
-
-            return fetchWSCStation(stnId)
-                .then(function (readings) {
-                    if (readings && readings.length > 0) {
-                        station.wscMeasures = readings;
-                    }
-                    return null;
-                })
-                .catch(function () {
-                    // Silently ignore — station just won't show WSC data
-                    return null;
-                });
-        });
-
-        return Promise.all(promises);
+        return Promise.all(stations.map(async station => {
+            const stnId = extractWSCId(station.wscUrlEn);
+            if (!stnId) return;
+            try {
+                const readings = await fetchWSCStation(stnId);
+                if (readings.length > 0) station.wscMeasures = readings;
+            } catch (err) {
+                // Ignore: this station just won't show WSC data
+            }
+        }));
     }
 
     // -- Public API --
@@ -294,44 +262,28 @@ var FloodData = (function () {
      *   2. WSC realtime readings for each station that has a WSC gauge.
      * Resolves to { stations, creationDate }.
      */
-    function loadAll() {
-        var stationsFromAlerts;
-
-        return Promise.all([
+    async function loadAll() {
+        const [alertDoc, fewsDoc] = await Promise.all([
             fetchXML(URLS.alertLevels),
-            fetchXML(URLS.fewsExport).catch(function (err) {
+            fetchXML(URLS.fewsExport).catch(err => {
                 console.warn('FEWS data unavailable:', err.message);
                 return null;
             })
-        ]).then(function (results) {
-            var alertDoc = results[0];
-            var fewsDoc = results[1];
+        ]);
 
-            stationsFromAlerts = parseAlertLevels(alertDoc);
+        const stations = parseAlertLevels(alertDoc);
+        const creationDate = fewsDoc ? parseFEWS(fewsDoc, stations) : null;
 
-            var creationDate = null;
-            if (fewsDoc) {
-                var fewsResult = parseFEWS(fewsDoc, stationsFromAlerts);
-                creationDate = fewsResult.creationDate;
+        // Fetch WSC realtime data, then recompute stations that gained some
+        await fetchAllWSC(stations);
+        stations.forEach(station => {
+            if (station.wscMeasures && station.wscMeasures.length > 0) {
+                computeStationStatus(station);
             }
-
-            // Fetch WSC realtime data (CORS-enabled API) for all stations with a WSC URL
-            return fetchAllWSC(stationsFromAlerts).then(function () {
-                // Recompute status for stations that gained WSC data
-                stationsFromAlerts.forEach(function (station) {
-                    if (station.wscMeasures && station.wscMeasures.length > 0) {
-                        computeStationStatus(station);
-                    }
-                });
-                return {
-                    stations: stationsFromAlerts,
-                    creationDate: creationDate
-                };
-            });
         });
+
+        return { stations, creationDate };
     }
 
-    return {
-        loadAll: loadAll
-    };
+    return { loadAll };
 })();
