@@ -280,7 +280,8 @@ var FloodMap = (function () {
             cityMarkers.push(marker);
         });
 
-        map.on('zoomend moveend', updateCityVisibility);
+        // 'moveend' fires after every pan *and* every zoom, so it covers both
+        map.on('moveend', updateCityVisibility);
         updateCityVisibility();
     }
 
