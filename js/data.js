@@ -141,71 +141,49 @@ var FloodData = (function () {
     }
 
     /**
-     * Compute current level, staleness, alert level, and trend for a station.
-     * Falls back to WSC realtime data when FEWS data is stale or missing.
-     * If all data is stale, alert level is forced to 'nodata'.
+     * Work out a station's current level, alert level and trend.
+     *
+     * A station can have up to two data sources:
+     *   - FEWS (provincial): observed readings (measures) and forecasts
+     *   - WSC (federal):     realtime gauge readings (wscMeasures)
+     * FEWS is preferred. WSC is used when FEWS is stale or empty and WSC
+     * has a fresh reading. If neither is fresh, the alert level is 'nodata'.
      */
     function computeStationStatus(station) {
-        var level = null;
-        var lastReadingTime = null;
+        // 1. FEWS: the latest observed reading. If the station has no observed
+        //    readings at all, use the first forecast value instead.
+        var fewsReading = FloodUtils.lastValidReading(station.measures) ||
+            station.forecasts.find(function (r) { return r.wlvl != null; }) ||
+            null;
 
-        // Current level = last valid measured reading
-        if (station.measures.length > 0) {
-            for (var i = station.measures.length - 1; i >= 0; i--) {
-                if (station.measures[i].wlvl != null) {
-                    level = station.measures[i].wlvl;
-                    lastReadingTime = station.measures[i].dtime;
-                    break;
-                }
-            }
-        }
-        // Fallback to first valid forecast
-        if (level == null && station.forecasts.length > 0) {
-            for (var j = 0; j < station.forecasts.length; j++) {
-                if (station.forecasts[j].wlvl != null) {
-                    level = station.forecasts[j].wlvl;
-                    lastReadingTime = station.forecasts[j].dtime;
-                    break;
-                }
-            }
-        }
-
-        // Check staleness of FEWS data
+        // Note: a forecast-only station counts as fresh, because its last
+        // forecast time is in the future.
         var fewsStale = FloodAlerts.isStale(station.measures.length > 0 ? station.measures : station.forecasts);
 
-        // Fallback to WSC realtime data if FEWS is stale or has no level
-        var wscLevel = null;
-        var wscTime = null;
-        var wscStale = true;
-        if (station.wscMeasures && station.wscMeasures.length > 0) {
-            wscStale = FloodAlerts.isStale(station.wscMeasures);
-            for (var k = station.wscMeasures.length - 1; k >= 0; k--) {
-                if (station.wscMeasures[k].wlvl != null) {
-                    wscLevel = station.wscMeasures[k].wlvl;
-                    wscTime = station.wscMeasures[k].dtime;
-                    break;
-                }
-            }
-        }
+        // 2. WSC: the latest gauge reading, if it is recent enough
+        var wscReading = FloodUtils.lastValidReading(station.wscMeasures);
+        var wscFresh = wscReading != null && !FloodAlerts.isStale(station.wscMeasures);
 
-        // Use WSC data if FEWS data is stale/missing but WSC is fresh
-        if ((fewsStale || level == null) && wscLevel != null && !wscStale) {
-            level = wscLevel;
-            lastReadingTime = wscTime;
+        // 3. Pick the source to show
+        var reading;
+        if ((fewsStale || !fewsReading) && wscFresh) {
+            reading = wscReading;
             station.isStale = false;
             station.dataSource = 'wsc';
         } else {
+            reading = fewsReading;
             station.isStale = fewsStale;
             station.dataSource = fewsStale ? 'none' : 'fews';
         }
 
-        station.currentLevel = level;
-        station.lastReadingTime = lastReadingTime;
+        station.currentLevel = reading ? reading.wlvl : null;
+        station.lastReadingTime = reading ? reading.dtime : null;
 
+        // 4. Alert level and trend from the chosen source
         if (station.isStale) {
             station.alertLevel = 'nodata';
         } else {
-            station.alertLevel = FloodAlerts.getAlertLevel(level, station.thresholds);
+            station.alertLevel = FloodAlerts.getAlertLevel(station.currentLevel, station.thresholds);
         }
 
         station.trend = FloodUtils.computeTrend(

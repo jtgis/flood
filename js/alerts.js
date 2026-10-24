@@ -42,11 +42,7 @@ var FloodAlerts = (function () {
      * Returns true if data is stale or missing.
      */
     function isStale(readings) {
-        if (!readings || readings.length === 0) return true;
-        var last = null;
-        for (var i = readings.length - 1; i >= 0; i--) {
-            if (readings[i].wlvl != null) { last = readings[i]; break; }
-        }
+        var last = FloodUtils.lastValidReading(readings);
         if (!last || !last.dtime) return true;
         var age = (Date.now() - last.dtime.getTime()) / 3600000;
         return age > STALE_HOURS;

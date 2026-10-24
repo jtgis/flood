@@ -25,6 +25,19 @@ var FloodUtils = (function () {
         return Math.round(value * factor) / factor;
     }
 
+    /**
+     * Return the newest reading that has a water level, or null if there is
+     * none. Readings are { dtime, wlvl } objects in time order; missing
+     * values have wlvl === null.
+     */
+    function lastValidReading(readings) {
+        if (!readings) return null;
+        for (var i = readings.length - 1; i >= 0; i--) {
+            if (readings[i].wlvl != null) return readings[i];
+        }
+        return null;
+    }
+
     function showToast(message, duration) {
         duration = duration || 4000;
         var el = document.getElementById('toast');
@@ -77,6 +90,7 @@ var FloodUtils = (function () {
     return {
         escapeHtml: escapeHtml,
         round: round,
+        lastValidReading: lastValidReading,
         showToast: showToast,
         computeTrend: computeTrend,
         trendArrow: trendArrow
