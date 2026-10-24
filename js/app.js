@@ -98,9 +98,10 @@
 
         var trend = station.trend || { direction: 'stable', rate: 0 };
         var trendEl = document.getElementById('panel-trend');
+        // e.g. "↑ Rising (0.05 m/hr)" or "→ Stable" (no rate shown when stable)
         trendEl.textContent = FloodUtils.trendArrow(trend.direction) + ' ' +
             trend.direction.charAt(0).toUpperCase() + trend.direction.slice(1) +
-            (trend.rate > 0 ? ' (' + trend.rate + ' m/hr)' : '');
+            (trend.direction !== 'stable' ? ' (' + trend.rate + ' m/hr)' : '');
 
         // Last reading time in the viewer's time zone, e.g. "Oct 23, 9:05 PM"
         var issuedText = '\u2014';
