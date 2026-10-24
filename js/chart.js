@@ -28,47 +28,29 @@ var FloodChart = (function () {
     var _pluginNowTime       = null;
     var _pluginCurrentLevel  = null;
 
-    /* ── colour palette ── */
+    /* ── colour palette (shared with the map and legend) ── */
 
-    var COLORS = {
-        normal:   '#2563eb',
-        advisory: '#22c55e',
-        watch:    '#facc15',
-        warning:  '#fb923c',
-        flood:    '#ef4444',
-        record:   '#7c3aed'
-    };
-
-    var FILLS = {
-        normal:   'rgba(37,99,235,0.18)',
-        advisory: 'rgba(34,197,94,0.18)',
-        watch:    'rgba(250,204,21,0.18)',
-        warning:  'rgba(251,146,60,0.18)',
-        flood:    'rgba(239,68,68,0.18)'
-    };
-
+    var COLORS = FloodAlerts.COLORS;
     var FORECAST_COLOR = '#8b5cf6';
-    var WSC_COLOR      = '#0e7490';
 
     var WINDOW_HOURS_BACK    = 48;
     var WINDOW_HOURS_FORWARD = 48;
 
     /* ── helpers ── */
 
-    function getZone(y, th) {
-        if (th.flood    != null && y >= th.flood)    return 'flood';
-        if (th.warning  != null && y >= th.warning)  return 'warning';
-        if (th.watch    != null && y >= th.watch)    return 'watch';
-        if (th.advisory != null && y >= th.advisory) return 'advisory';
-        return 'normal';
-    }
-
+    // Turn '#rrggbb' into 'rgba(r,g,b,a)' so a colour can be drawn see-through
     function hexToRgba(hex, a) {
         var r = parseInt(hex.slice(1, 3), 16);
         var g = parseInt(hex.slice(3, 5), 16);
         var b = parseInt(hex.slice(5, 7), 16);
         return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
     }
+
+    // Light, see-through version of each zone colour for the area under the line
+    var FILLS = {};
+    Object.keys(COLORS).forEach(function (level) {
+        FILLS[level] = hexToRgba(COLORS[level], 0.18);
+    });
 
     /* ================================================================
        Custom Chart.js Plugins
@@ -101,7 +83,7 @@ var FloodChart = (function () {
                         var w1 = wscMeta.data[j + 1];
                         if (w0.skip || w1.skip) continue;
                         var avgWY = (wscRaw[j].y + wscRaw[j + 1].y) / 2;
-                        var wscZone = getZone(avgWY, th);
+                        var wscZone = FloodAlerts.getAlertLevel(avgWY, th);
                         ctx.beginPath();
                         ctx.moveTo(w0.x - 0.5, w0.y);
                         ctx.lineTo(w1.x + 0.5, w1.y);
@@ -125,7 +107,7 @@ var FloodChart = (function () {
                         var p1 = meta.data[i + 1];
                         if (p0.skip || p1.skip) continue;
                         var avgY = (raw[i].y + raw[i + 1].y) / 2;
-                        var zone = getZone(avgY, th);
+                        var zone = FloodAlerts.getAlertLevel(avgY, th);
                         ctx.beginPath();
                         ctx.moveTo(p0.x - 0.5, p0.y);
                         ctx.lineTo(p1.x + 0.5, p1.y);
@@ -449,7 +431,7 @@ var FloodChart = (function () {
                 pointHoverBorderWidth: 2.5,
                 pointHoverBorderColor: function (ctx) {
                     if (!ctx.raw) return COLORS.normal;
-                    return COLORS[getZone(ctx.raw.y, th)];
+                    return COLORS[FloodAlerts.getAlertLevel(ctx.raw.y, th)];
                 },
                 pointHitRadius: 10,
                 tension: 0.35,
@@ -457,7 +439,7 @@ var FloodChart = (function () {
                 segment: {
                     borderColor: function (ctx) {
                         if (!ctx.p1 || !ctx.p1.parsed) return COLORS.normal;
-                        return COLORS[getZone(ctx.p1.parsed.y, th)];
+                        return COLORS[FloodAlerts.getAlertLevel(ctx.p1.parsed.y, th)];
                     }
                 }
             });
@@ -477,11 +459,11 @@ var FloodChart = (function () {
                 },
                 pointBackgroundColor: function (ctx) {
                     if (!ctx.raw) return COLORS.normal;
-                    return COLORS[getZone(ctx.raw.y, th)];
+                    return COLORS[FloodAlerts.getAlertLevel(ctx.raw.y, th)];
                 },
                 pointBorderColor: function (ctx) {
                     if (!ctx.raw) return COLORS.normal;
-                    return COLORS[getZone(ctx.raw.y, th)];
+                    return COLORS[FloodAlerts.getAlertLevel(ctx.raw.y, th)];
                 },
                 pointBorderWidth: 1,
                 pointHoverRadius: 6,
@@ -492,7 +474,7 @@ var FloodChart = (function () {
                 segment: {
                     borderColor: function (ctx) {
                         if (!ctx.p1 || !ctx.p1.parsed) return COLORS.normal;
-                        return COLORS[getZone(ctx.p1.parsed.y, th)];
+                        return COLORS[FloodAlerts.getAlertLevel(ctx.p1.parsed.y, th)];
                     }
                 }
             });

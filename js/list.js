@@ -60,7 +60,7 @@ var FloodList = (function () {
                 ? FloodUtils.round(station.currentLevel, 2) + ' m'
                 : '\u2014';
 
-            var dotColor = FloodMap.COLORS[station.alertLevel] || FloodMap.COLORS.nodata;
+            var dotColor = FloodAlerts.COLORS[station.alertLevel] || FloodAlerts.COLORS.nodata;
 
             var safeName = FloodUtils.escapeHtml(station.name);
             li.innerHTML =

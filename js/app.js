@@ -315,7 +315,7 @@
         }
 
         var counts = FloodAlerts.countAlerts(allStations);
-        var colors = FloodMap.COLORS;
+        var colors = FloodAlerts.COLORS;
 
         var html = '<table class="summary-table"><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>';
         var levels = ['flood', 'warning', 'watch', 'advisory', 'normal', 'nodata'];

@@ -45,14 +45,7 @@ var FloodMap = (function () {
         return 30;
     }
 
-    var COLORS = {
-        normal:   '#3b82f6',
-        advisory: '#22c55e',
-        watch:    '#eab308',
-        warning:  '#f97316',
-        flood:    '#dc2626',
-        nodata:   '#6b7280'
-    };
+    var COLORS = FloodAlerts.COLORS;
 
     function stageBubble(level) {
         var color = COLORS[level] || COLORS.nodata;
@@ -441,7 +434,6 @@ var FloodMap = (function () {
         switchBasemap: switchBasemap,
         toggleOverlay: toggleOverlay,
         setShowNoData: setShowNoData,
-        getMap: function () { return map; },
-        COLORS: COLORS
+        getMap: function () { return map; }
     };
 })();

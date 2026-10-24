@@ -9,6 +9,18 @@ var FloodAlerts = (function () {
     var STALE_HOURS = 48;
 
     /**
+     * Colour for each alert level, e.g. COLORS.flood === '#dc2626'.
+     * Read from the --c-* variables at the top of style.css, so that file is
+     * the one place to change them. (The stylesheet is loaded in <head>, so
+     * it is ready before this script runs.)
+     */
+    var COLORS = {};
+    var rootStyle = getComputedStyle(document.documentElement);
+    ['normal', 'advisory', 'watch', 'warning', 'flood', 'record', 'nodata'].forEach(function (level) {
+        COLORS[level] = rootStyle.getPropertyValue('--c-' + level).trim();
+    });
+
+    /**
      * Determine alert level from current water level vs thresholds.
      * Returns: 'flood' | 'warning' | 'watch' | 'advisory' | 'normal' | 'nodata'
      */
@@ -84,6 +96,7 @@ var FloodAlerts = (function () {
         isStale: isStale,
         alertPriority: alertPriority,
         countAlerts: countAlerts,
-        alertLabel: alertLabel
+        alertLabel: alertLabel,
+        COLORS: COLORS
     };
 })();
