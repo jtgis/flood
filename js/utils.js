@@ -2,7 +2,7 @@
    utils.js - Shared helpers
    ========================================================================== */
 
-var FloodUtils = (function () {
+const FloodUtils = (function () {
     'use strict';
 
     /**
@@ -21,9 +21,9 @@ var FloodUtils = (function () {
 
     // Round to a number of decimal places (default 1), e.g. round(5.678, 2) -> 5.68.
     // Returns null for missing values.
-    function round(value, decimals) {
+    function round(value, decimals = 1) {
         if (value == null || isNaN(value)) return null;
-        var factor = Math.pow(10, decimals || 1);
+        const factor = Math.pow(10, decimals);
         return Math.round(value * factor) / factor;
     }
 
@@ -34,22 +34,19 @@ var FloodUtils = (function () {
      */
     function lastValidReading(readings) {
         if (!readings) return null;
-        for (var i = readings.length - 1; i >= 0; i--) {
+        for (let i = readings.length - 1; i >= 0; i--) {
             if (readings[i].wlvl != null) return readings[i];
         }
         return null;
     }
 
-    function showToast(message, duration) {
-        duration = duration || 4000;
-        var el = document.getElementById('toast');
+    function showToast(message, duration = 4000) {
+        const el = document.getElementById('toast');
         if (!el) return;
         el.textContent = message;
         el.classList.remove('toast-hidden');
         clearTimeout(el._timer);
-        el._timer = setTimeout(function () {
-            el.classList.add('toast-hidden');
-        }, duration);
+        el._timer = setTimeout(() => el.classList.add('toast-hidden'), duration);
     }
 
     /**
@@ -59,42 +56,35 @@ var FloodUtils = (function () {
      * null - 5 === -5, so a missing last reading would look like a big drop.
      */
     function computeTrend(readings) {
-        var stable = { direction: 'stable', rate: 0 };
+        const stable = { direction: 'stable', rate: 0 };
         if (!readings) return stable;
 
-        var valid = readings.filter(function (r) { return r.wlvl != null; });
+        const valid = readings.filter(r => r.wlvl != null);
         if (valid.length < 2) return stable;
 
-        var last = valid[valid.length - 1];
-        var cutoff = new Date(last.dtime.getTime() - 6 * 3600 * 1000);
-        var recent = valid.filter(function (r) { return r.dtime >= cutoff; });
+        const last = valid[valid.length - 1];
+        const cutoff = new Date(last.dtime.getTime() - 6 * 3600 * 1000);
+        const recent = valid.filter(r => r.dtime >= cutoff);
         if (recent.length < 2) return stable;
 
-        var first = recent[0];
-        var deltaLevel = last.wlvl - first.wlvl;
-        var deltaHours = (last.dtime - first.dtime) / 3600000;
+        const first = recent[0];
+        const deltaLevel = last.wlvl - first.wlvl;
+        const deltaHours = (last.dtime - first.dtime) / 3600000;
         if (deltaHours === 0) return stable;
 
-        var rate = deltaLevel / deltaHours;
-        var direction = 'stable';
+        const rate = deltaLevel / deltaHours;
+        let direction = 'stable';
         if (rate > 0.02) direction = 'rising';
         else if (rate < -0.02) direction = 'falling';
 
-        return { direction: direction, rate: round(Math.abs(rate), 2) };
+        return { direction, rate: round(Math.abs(rate), 2) };
     }
 
     function trendArrow(direction) {
-        if (direction === 'rising') return '\u2191';
-        if (direction === 'falling') return '\u2193';
-        return '\u2192';
+        if (direction === 'rising') return '↑';
+        if (direction === 'falling') return '↓';
+        return '→';
     }
 
-    return {
-        escapeHtml: escapeHtml,
-        round: round,
-        lastValidReading: lastValidReading,
-        showToast: showToast,
-        computeTrend: computeTrend,
-        trendArrow: trendArrow
-    };
+    return { escapeHtml, round, lastValidReading, showToast, computeTrend, trendArrow };
 })();
