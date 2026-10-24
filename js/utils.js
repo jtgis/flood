@@ -36,17 +36,28 @@ var FloodUtils = (function () {
         }, duration);
     }
 
+    /**
+     * Work out whether the water is rising, falling or stable, using the
+     * change between the first and last valid readings in the final 6 hours.
+     * Readings with no value (null) are ignored. This matters because in JS
+     * null - 5 === -5, so a missing last reading would look like a big drop.
+     */
     function computeTrend(readings) {
-        if (!readings || readings.length < 2) return { direction: 'stable', rate: 0 };
-        var last = readings[readings.length - 1];
+        var stable = { direction: 'stable', rate: 0 };
+        if (!readings) return stable;
+
+        var valid = readings.filter(function (r) { return r.wlvl != null; });
+        if (valid.length < 2) return stable;
+
+        var last = valid[valid.length - 1];
         var cutoff = new Date(last.dtime.getTime() - 6 * 3600 * 1000);
-        var recent = readings.filter(function (r) { return r.dtime >= cutoff && r.wlvl !== -999 && r.wlvl != null; });
-        if (recent.length < 2) return { direction: 'stable', rate: 0 };
+        var recent = valid.filter(function (r) { return r.dtime >= cutoff; });
+        if (recent.length < 2) return stable;
 
         var first = recent[0];
         var deltaLevel = last.wlvl - first.wlvl;
         var deltaHours = (last.dtime - first.dtime) / 3600000;
-        if (deltaHours === 0) return { direction: 'stable', rate: 0 };
+        if (deltaHours === 0) return stable;
 
         var rate = deltaLevel / deltaHours;
         var direction = 'stable';
