@@ -324,9 +324,9 @@
         });
 
         if (alertStations.length > 0) {
-            html += '<h4 style="margin:12px 0 6px;font-size:13px;">Active Alerts</h4><ul style="list-style:none;padding:0;">';
+            html += '<h4 class="summary-alerts-title">Active Alerts</h4><ul class="summary-alert-list">';
             alertStations.forEach(function (s) {
-                html += '<li style="padding:4px 0;font-size:12px;">' +
+                html += '<li>' +
                     '<span class="status-dot" style="background:' + colors[s.alertLevel] + '"></span> ' +
                     '<strong>' + FloodUtils.escapeHtml(s.name) + '</strong> \u2014 ' + FloodAlerts.alertLabel(s.alertLevel);
                 if (s.currentLevel != null) html += ' (' + FloodUtils.round(s.currentLevel, 2) + ' m)';
@@ -334,7 +334,7 @@
             });
             html += '</ul>';
         } else {
-            html += '<p style="margin-top:10px;font-size:13px;">No active flood alerts.</p>';
+            html += '<p class="summary-empty">No active flood alerts.</p>';
         }
 
         body.innerHTML = html;
