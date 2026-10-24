@@ -1,26 +1,26 @@
 ﻿/* ==========================================================================
-   list.js - Station list (inside toggled legend panel)
+   list.js - Station list (inside the toggled station list panel)
    ========================================================================== */
 
-var FloodList = (function () {
+const FloodList = (function () {
     'use strict';
 
-    var listEl = null;
-    var stations = [];
-    var currentSort = 'location';
-    var onSelect = null;
-    var selectedId = null;
-    var showNoData = false;
+    let listEl = null;
+    let stations = [];
+    let currentSort = 'location';
+    let onSelect = null;
+    let selectedId = null;
+    let showNoData = false;
 
     function init(selectCallback) {
         listEl = document.getElementById('station-list');
         onSelect = selectCallback;
 
-        // Sort buttons (inside legend panel)
-        var sortBtns = document.querySelectorAll('.sort-btn');
-        sortBtns.forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                sortBtns.forEach(function (b) { b.classList.remove('active'); });
+        // Sort buttons (inside the station list panel)
+        const sortBtns = document.querySelectorAll('.sort-btn');
+        sortBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sortBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentSort = btn.getAttribute('data-sort');
                 render();
@@ -38,40 +38,41 @@ var FloodList = (function () {
      * No-data stations are left out unless the "Show No-Data" box is ticked.
      */
     function visibleStations() {
-        var filtered = stations.filter(function (s) {
-            return showNoData || s.alertLevel !== 'nodata';
-        });
-        return filtered.sort(sortFn);
+        return stations
+            .filter(s => showNoData || s.alertLevel !== 'nodata')
+            .sort(sortFn);
     }
 
     function render() {
         if (!listEl) return;
 
         listEl.innerHTML = '';
-        visibleStations().forEach(function (station) {
-            var li = document.createElement('li');
-            li.className = 'station-item ' + station.alertLevel;
+        visibleStations().forEach(station => {
+            const li = document.createElement('li');
+            li.className = `station-item ${station.alertLevel}`;
             if (station.stationID === selectedId) li.classList.add('selected');
             li.setAttribute('data-id', station.stationID);
             li.setAttribute('tabindex', '0');
             li.setAttribute('role', 'button');
 
-            var levelText = station.currentLevel != null
-                ? FloodUtils.round(station.currentLevel, 2) + ' m'
-                : '\u2014';
+            const levelText = station.currentLevel != null
+                ? `${FloodUtils.round(station.currentLevel, 2)} m`
+                : '—';
+            const dotColor = FloodAlerts.COLORS[station.alertLevel] || FloodAlerts.COLORS.nodata;
+            const safeName = FloodUtils.escapeHtml(station.name);
 
-            var dotColor = FloodAlerts.COLORS[station.alertLevel] || FloodAlerts.COLORS.nodata;
+            li.innerHTML = `
+                <span class="station-dot" style="background:${dotColor}"></span>
+                <span class="station-name" title="${safeName}">${safeName}</span>
+                <span class="station-level">${levelText}</span>
+                <span class="station-trend">${FloodUtils.trendArrow(station.trend.direction)}</span>`;
 
-            var safeName = FloodUtils.escapeHtml(station.name);
-            li.innerHTML =
-                '<span class="station-dot" style="background:' + dotColor + '"></span>' +
-                '<span class="station-name" title="' + safeName + '">' + safeName + '</span>' +
-                '<span class="station-level">' + levelText + '</span>' +
-                '<span class="station-trend">' + FloodUtils.trendArrow(station.trend.direction) + '</span>';
-
-            li.addEventListener('click', function () { selectStation(station); });
-            li.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectStation(station); }
+            li.addEventListener('click', () => selectStation(station));
+            li.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectStation(station);
+                }
             });
 
             listEl.appendChild(li);
@@ -91,7 +92,7 @@ var FloodList = (function () {
     function setSelected(stationID) {
         selectedId = stationID;
         if (!listEl) return;
-        listEl.querySelectorAll('.station-item').forEach(function (item) {
+        listEl.querySelectorAll('.station-item').forEach(item => {
             item.classList.toggle('selected', item.getAttribute('data-id') === selectedId);
         });
     }
@@ -104,25 +105,21 @@ var FloodList = (function () {
      *   'risk'     - most severe alert first, then A to Z
      */
     function sortFn(a, b) {
-        switch (currentSort) {
-            case 'name':
-                return a.name.localeCompare(b.name);
-            case 'risk':
-                var pa = FloodAlerts.alertPriority(a.alertLevel);
-                var pb = FloodAlerts.alertPriority(b.alertLevel);
-                if (pa !== pb) return pb - pa;
-                return a.name.localeCompare(b.name);
-            case 'location':
-            default:
-                return 0;
+        if (currentSort === 'name') {
+            return a.name.localeCompare(b.name);
         }
+        if (currentSort === 'risk') {
+            const severityDiff = FloodAlerts.alertPriority(b.alertLevel) - FloodAlerts.alertPriority(a.alertLevel);
+            return severityDiff !== 0 ? severityDiff : a.name.localeCompare(b.name);
+        }
+        return 0;   // 'location': keep the feed order
     }
 
     function updateLegend(stations) {
         // counts looks like { normal: 11, advisory: 0, ... }; each goes in #count-<level>
-        var counts = FloodAlerts.countAlerts(stations);
-        Object.keys(counts).forEach(function (level) {
-            var el = document.getElementById('count-' + level);
+        const counts = FloodAlerts.countAlerts(stations);
+        Object.keys(counts).forEach(level => {
+            const el = document.getElementById(`count-${level}`);
             if (el) el.textContent = counts[level];
         });
     }
@@ -137,22 +134,15 @@ var FloodList = (function () {
      * wrapping around at either end. Used by the left/right arrow keys.
      */
     function selectByOffset(offset) {
-        var visible = visibleStations();
+        const visible = visibleStations();
         if (!visible.length) return;
 
-        var curIdx = visible.findIndex(function (s) { return s.stationID === selectedId; });
-        var newIdx = curIdx + offset;
+        const curIdx = visible.findIndex(s => s.stationID === selectedId);
+        let newIdx = curIdx + offset;
         if (newIdx < 0) newIdx = visible.length - 1;
         if (newIdx >= visible.length) newIdx = 0;
         selectStation(visible[newIdx]);
     }
 
-    return {
-        init: init,
-        setStations: setStations,
-        setSelected: setSelected,
-        updateLegend: updateLegend,
-        selectByOffset: selectByOffset,
-        setShowNoData: setShowNoData
-    };
+    return { init, setStations, setSelected, updateLegend, selectByOffset, setShowNoData };
 })();
