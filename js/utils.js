@@ -5,19 +5,6 @@
 var FloodUtils = (function () {
     'use strict';
 
-    function formatDateTime(d) {
-        if (!(d instanceof Date) || isNaN(d)) return '\u2014';
-        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-               ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    }
-
-    function formatDate(d) {
-        if (!(d instanceof Date) || isNaN(d)) return '\u2014';
-        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    }
-
     /**
      * Make text safe to put inside an HTML string. Characters like < and &
      * would otherwise be read as markup and could break the page.
@@ -87,25 +74,11 @@ var FloodUtils = (function () {
         return '\u2192';
     }
 
-    function trendClass(direction) {
-        if (direction === 'rising') return 'color: var(--c-warning)';
-        if (direction === 'falling') return 'color: var(--c-normal)';
-        return 'color: var(--text-secondary)';
-    }
-
-    function slugify(str) {
-        return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    }
-
     return {
-        formatDateTime: formatDateTime,
-        formatDate: formatDate,
         escapeHtml: escapeHtml,
         round: round,
         showToast: showToast,
         computeTrend: computeTrend,
-        trendArrow: trendArrow,
-        trendClass: trendClass,
-        slugify: slugify
+        trendArrow: trendArrow
     };
 })();

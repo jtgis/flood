@@ -8,7 +8,6 @@ var FloodMap = (function () {
     var map = null;
     var markers = [];
     var markerGroup = null;
-    var selectedStationID = null;
     var baseLayers = {};
     var currentBase = 'imagery';
     var overlayLayers = {};
@@ -18,7 +17,7 @@ var FloodMap = (function () {
     var NB_BOUNDS = [[44.0, -69.5], [48.5, -62.0]];
 
     /* alert level severity order (lowest → highest) */
-    var LEVEL_ORDER = ['nodata', 'normal', 'advisory', 'watch', 'warning', 'flood', 'record'];
+    var LEVEL_ORDER = ['nodata', 'normal', 'advisory', 'watch', 'warning', 'flood'];
 
     /* marker diameter in px per alert level */
     var MARKER_SIZES = {
@@ -27,8 +26,7 @@ var FloodMap = (function () {
         advisory: 19,
         watch:    22,
         warning:  25,
-        flood:    29,
-        record:   33
+        flood:    29
     };
 
     function highestLevel(childMarkers) {
@@ -137,7 +135,6 @@ var FloodMap = (function () {
             var name  = topStation ? topStation.name : 'Unknown';
             var lvl   = topStation ? topStation.currentLevel : null;
             var levelText = lvl != null ? FloodUtils.round(lvl, 2) + ' m' : 'No data';
-            var alertLabel = level.charAt(0).toUpperCase() + level.slice(1);
             var extra = children.length - 1;
 
             var html =
@@ -413,7 +410,6 @@ var FloodMap = (function () {
     }
 
     function highlightStation(stationID) {
-        selectedStationID = stationID;
         markers.forEach(function (m) {
             var el = m.marker.getElement();
             if (!el) return;
@@ -434,10 +430,6 @@ var FloodMap = (function () {
     function zoomIn() { if (map) map.zoomIn(); }
     function zoomOut() { if (map) map.zoomOut(); }
 
-    function invalidateSize() {
-        if (map) setTimeout(function () { map.invalidateSize(); }, 100);
-    }
-
     return {
         init: init,
         setStations: setStations,
@@ -449,7 +441,6 @@ var FloodMap = (function () {
         switchBasemap: switchBasemap,
         toggleOverlay: toggleOverlay,
         setShowNoData: setShowNoData,
-        invalidateSize: invalidateSize,
         getMap: function () { return map; },
         COLORS: COLORS
     };

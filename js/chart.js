@@ -544,12 +544,11 @@ var FloodChart = (function () {
                         time: {
                             unit: 'hour',
                             stepSize: 24,
-                            displayFormats: { hour: 'MMM d, ha', day: 'MMM d' },
+                            displayFormats: { hour: 'MMM d, ha' },
                             tooltipFormat: 'MMM d, yyyy h:mm a'
                         },
                         grid: {
                             color: 'rgba(0,0,0,0.04)',
-                            drawBorder: false,
                             tickLength: 0
                         },
                         ticks: {
@@ -573,7 +572,6 @@ var FloodChart = (function () {
                         },
                         grid: {
                             color: 'rgba(0,0,0,0.04)',
-                            drawBorder: false,
                             tickLength: 0
                         },
                         ticks: {
@@ -623,17 +621,10 @@ var FloodChart = (function () {
                                        (v != null ? v.toFixed(2) + ' m' : '\u2014');
                             }
                         }
-                    },
-                    annotation: { annotations: {} }
+                    }
                 }
             }
         });
-
-        /* store metadata for custom plugins (legacy — plugin state now uses closure vars) */
-        chart._thresholds    = th;
-        chart._nowTime       = now;
-        chart._measuredIndex = measuredIndex;
-        chart._wscIndex      = wscIndex;
     }
 
     /* ── filter readings to visible window ── */

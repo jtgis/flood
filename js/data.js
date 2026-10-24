@@ -5,22 +5,14 @@
 var FloodData = (function () {
     'use strict';
 
-    var PROXY_BASE = '';
-
     var URLS = {
         alertLevels: 'https://geonb.snb.ca/rwm/flood/alertlevels.xml',
         fewsExport:  'https://geonb.snb.ca/rwm/flood/StJohn_FEWSNB_export.xml',
-        ecHourly:    'https://dd.weather.gc.ca/today/hydrometric/csv/NB/hourly/NB_hourly_hydrometric.csv',
         wscRealtime: 'https://api.weather.gc.ca/collections/hydrometric-realtime/items'
     };
 
-    function proxyUrl(url) {
-        if (!PROXY_BASE) return url;
-        return PROXY_BASE + '?url=' + encodeURIComponent(url);
-    }
-
     function fetchXML(url) {
-        return fetch(proxyUrl(url))
+        return fetch(url)
             .then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching ' + url);
                 return r.text();
@@ -28,30 +20,6 @@ var FloodData = (function () {
             .then(function (text) {
                 text = text.replace(/\s+xmlns\s*=\s*"[^"]*"/g, '');
                 return new DOMParser().parseFromString(text, 'application/xml');
-            });
-    }
-
-    function fetchCSV(url) {
-        return fetch(url)
-            .then(function (r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching ' + url);
-                return r.text();
-            })
-            .then(function (text) {
-                var lines = text.trim().split('\n');
-                return lines.map(function (line) {
-                    var result = [];
-                    var current = '';
-                    var inQuote = false;
-                    for (var i = 0; i < line.length; i++) {
-                        var ch = line[i];
-                        if (ch === '"') { inQuote = !inQuote; }
-                        else if (ch === ',' && !inQuote) { result.push(current.trim()); current = ''; }
-                        else { current += ch; }
-                    }
-                    result.push(current.trim());
-                    return result;
-                });
             });
     }
 
@@ -87,16 +55,12 @@ var FloodData = (function () {
                 flood:    getNum('Floodlvl'),
                 record:   getNum('max')
             },
-            hasMeasured:  getText('Measured') === 'YES',
-            hasForecast:  getText('Forecast') === 'YES',
             wscUrlEn:     getText('WSC_URL_EN'),
-            wscUrlFr:     getText('WSC_URL_FR'),
             measures:     [],
             forecasts:    [],
             currentLevel: null,
             alertLevel:   'nodata',
             trend:        { direction: 'stable', rate: 0 },
-            issuedDate:   null,
             isStale:      true
         };
     }
@@ -179,7 +143,7 @@ var FloodData = (function () {
 
     /**
      * Compute current level, staleness, alert level, and trend for a station.
-     * Falls back to WSC realtime data when FEWS/EC data is stale or missing.
+     * Falls back to WSC realtime data when FEWS data is stale or missing.
      * If all data is stale, alert level is forced to 'nodata'.
      */
     function computeStationStatus(station) {
@@ -207,7 +171,7 @@ var FloodData = (function () {
             }
         }
 
-        // Check staleness of FEWS/EC data
+        // Check staleness of FEWS data
         var fewsStale = FloodAlerts.isStale(station.measures.length > 0 ? station.measures : station.forecasts);
 
         // Fallback to WSC realtime data if FEWS is stale or has no level
@@ -239,7 +203,7 @@ var FloodData = (function () {
         station.currentLevel = level;
         station.lastReadingTime = lastReadingTime;
 
-        if (station.isStale && !(wscLevel != null && !wscStale)) {
+        if (station.isStale) {
             station.alertLevel = 'nodata';
         } else {
             station.alertLevel = FloodAlerts.getAlertLevel(level, station.thresholds);
@@ -248,28 +212,6 @@ var FloodData = (function () {
         station.trend = FloodUtils.computeTrend(
             station.dataSource === 'wsc' ? station.wscMeasures : station.measures
         );
-    }
-
-    // -- Parse EC Datamart CSV --
-
-    function parseECHourly(rows) {
-        if (rows.length < 2) return {};
-        var byStation = {};
-        for (var i = 1; i < rows.length; i++) {
-            var row = rows[i];
-            if (row.length < 3) continue;
-            var id = row[0];
-            var dt = new Date(row[1]);
-            var wl = parseFloat(row[2]);
-            var discharge = parseFloat(row[6]);
-            if (!byStation[id]) byStation[id] = [];
-            byStation[id].push({
-                dtime: dt,
-                wlvl: isNaN(wl) ? null : wl,
-                discharge: isNaN(discharge) ? null : discharge
-            });
-        }
-        return byStation;
     }
 
     // -- WSC Realtime (via EC GeoMet OGC API — CORS enabled) --
@@ -295,7 +237,7 @@ var FloodData = (function () {
             + '&sortby=-DATETIME'
             + '&f=json';
 
-        return fetch(proxyUrl(url))
+        return fetch(url)
             .then(function (r) {
                 if (!r.ok) throw new Error('WSC HTTP ' + r.status);
                 return r.json();
@@ -354,15 +296,10 @@ var FloodData = (function () {
             fetchXML(URLS.fewsExport).catch(function (err) {
                 console.warn('FEWS data unavailable:', err.message);
                 return null;
-            }),
-            fetchCSV(URLS.ecHourly).catch(function (err) {
-                console.warn('EC hourly unavailable:', err.message);
-                return null;
             })
         ]).then(function (results) {
             var alertDoc = results[0];
             var fewsDoc = results[1];
-            var ecRows = results[2];
 
             stationsFromAlerts = parseAlertLevels(alertDoc);
 
@@ -371,19 +308,6 @@ var FloodData = (function () {
                 var fewsResult = parseFEWS(fewsDoc, stationsFromAlerts);
                 creationDate = fewsResult.creationDate;
             }
-
-            var ecData = ecRows ? parseECHourly(ecRows) : {};
-
-            // Supplement with EC data where FEWS is missing
-            stationsFromAlerts.forEach(function (station) {
-                if (station.measures.length === 0 && station.wscUrlEn && station.wscUrlEn !== 'NONE') {
-                    var match = station.wscUrlEn.match(/stn=([A-Z0-9]+)/i);
-                    if (match && ecData[match[1]]) {
-                        station.measures = ecData[match[1]];
-                        computeStationStatus(station);
-                    }
-                }
-            });
 
             // Fetch WSC realtime data (CORS-enabled API) for all stations with a WSC URL
             return fetchAllWSC(stationsFromAlerts).then(function () {
@@ -395,15 +319,13 @@ var FloodData = (function () {
                 });
                 return {
                     stations: stationsFromAlerts,
-                    creationDate: creationDate,
-                    ecData: ecData
+                    creationDate: creationDate
                 };
             });
         });
     }
 
     return {
-        loadAll: loadAll,
-        URLS: URLS
+        loadAll: loadAll
     };
 })();

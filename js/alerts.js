@@ -84,7 +84,6 @@ var FloodAlerts = (function () {
         isStale: isStale,
         alertPriority: alertPriority,
         countAlerts: countAlerts,
-        alertLabel: alertLabel,
-        STALE_HOURS: STALE_HOURS
+        alertLabel: alertLabel
     };
 })();
