@@ -176,8 +176,14 @@ var FloodMap = (function () {
             { key: 'flood_5',  ids: [5], label: '2008 Flood – Lower Saint John' },
             { key: 'flood_6',  ids: [6], label: '2018 Flood – Lower Saint John' }
         ];
+        // esri-leaflet asks the ArcGIS server for one image of the current view
+        // and re-requests it whenever the map is panned or zoomed.
         floodLayerDefs.forEach(function (def) {
-            overlayLayers[def.key] = createArcGISDynamicLayer(floodServiceUrl, def.ids);
+            overlayLayers[def.key] = L.esri.dynamicMapLayer({
+                url: floodServiceUrl,
+                layers: def.ids,
+                opacity: 0.55
+            });
         });
 
         return map;
@@ -329,67 +335,6 @@ var FloodMap = (function () {
                 placed.push(pt);
             }
         });
-    }
-
-    /**
-     * Create an ArcGIS dynamic map layer using Leaflet's built-in capabilities.
-     * Uses /export endpoint to render a map image for the current map extent.
-     */
-    function createArcGISDynamicLayer(serviceUrl, layerIds) {
-        var DynLayer = L.Layer.extend({
-            onAdd: function (map) {
-                this._map = map;
-                this._overlay = null;
-                this._serviceUrl = serviceUrl;
-                this._layers = layerIds.join(',');
-                this._loading = false;
-                map.on('moveend', this._update, this);
-                this._update();
-            },
-            onRemove: function (map) {
-                if (this._overlay) {
-                    map.removeLayer(this._overlay);
-                    this._overlay = null;
-                }
-                map.off('moveend', this._update, this);
-            },
-            _update: function () {
-                if (this._loading) return;
-                var bounds = this._map.getBounds();
-                var size = this._map.getSize();
-                if (size.x === 0 || size.y === 0) return;
-
-                var sw = bounds.getSouthWest();
-                var ne = bounds.getNorthEast();
-                var bbox = sw.lng + ',' + sw.lat + ',' + ne.lng + ',' + ne.lat;
-                var url = this._serviceUrl + '/export?bbox=' + bbox +
-                    '&bboxSR=4326&imageSR=4326&size=' + size.x + ',' + size.y +
-                    '&format=png32&transparent=true&layers=show:' + this._layers +
-                    '&dpi=96&f=image';
-
-                var me = this;
-                var imageBounds = L.latLngBounds(sw, ne);
-                this._loading = true;
-
-                var img = new Image();
-                img.crossOrigin = 'anonymous';
-                img.onload = function () {
-                    me._loading = false;
-                    if (me._overlay) {
-                        me._map.removeLayer(me._overlay);
-                    }
-                    me._overlay = L.imageOverlay(url, imageBounds, {
-                        opacity: 0.55,
-                        interactive: false
-                    }).addTo(me._map);
-                };
-                img.onerror = function () {
-                    me._loading = false;
-                };
-                img.src = url;
-            }
-        });
-        return new DynLayer();
     }
 
     function switchBasemap(key) {
