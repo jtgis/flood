@@ -33,6 +33,11 @@ var FloodData = (function () {
         return stations;
     }
 
+    /**
+     * Turn one <station> element from alertlevels.xml into a station object.
+     * Readings are filled in later from FEWS and WSC. Note the feed's tag
+     * names: <Floodlvl> is the flood threshold and <max> is the record level.
+     */
     function parseAlertStation(node) {
         function getText(tag) {
             var el = node.getElementsByTagName(tag)[0];
@@ -84,6 +89,13 @@ var FloodData = (function () {
         return sign + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
     }
 
+    /**
+     * Read the FEWS export and attach readings to the matching stations.
+     * The file holds one <series> per station and parameter. We use two:
+     *   HG   = observed river stage (m)  -> station.measures
+     *   SSTG = simulated/forecast stage (m) -> station.forecasts
+     * (It also has flow series, Q and SQIN, which the app does not use.)
+     */
     function parseFEWS(doc, stations) {
         var seriesList = doc.getElementsByTagName('series');
         var creationDate = null;
@@ -274,6 +286,14 @@ var FloodData = (function () {
 
     // -- Public API --
 
+    /**
+     * Load everything the app needs, in this order:
+     *   1. alertlevels.xml (station list + thresholds) and the FEWS export,
+     *      fetched at the same time. The app cannot run without the first;
+     *      FEWS is optional.
+     *   2. WSC realtime readings for each station that has a WSC gauge.
+     * Resolves to { stations, creationDate }.
+     */
     function loadAll() {
         var stationsFromAlerts;
 

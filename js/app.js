@@ -57,7 +57,8 @@
                 FloodList.setStations(allStations);
                 FloodList.updateLegend(allStations);
 
-                // Check URL hash
+                // Open a station straight away if the link has one, e.g.
+                // index.html#station/01AK003 (onStationSelect sets this hash)
                 var hash = window.location.hash;
                 if (hash && hash.indexOf('#station/') === 0) {
                     var id = decodeURIComponent(hash.replace('#station/', ''));
@@ -341,6 +342,11 @@
 
     // -- Keyboard nav --
 
+    /**
+     * Escape:      close an open modal, otherwise close the station panel.
+     * Left/Right:  while the station panel is open, show the previous/next
+     *              station in the list.
+     */
     function setupKeyboardNav() {
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {

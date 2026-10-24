@@ -290,6 +290,11 @@ var FloodChart = (function () {
        Main show()
        ================================================================ */
 
+    /**
+     * Draw the water-level chart for a station, replacing any previous chart.
+     * Shows up to three lines over a window from 48h ago to 48h ahead:
+     * Observed (FEWS), WSC Gauge, and Forecast.
+     */
     function show(station) {
         if (chart) { chart.destroy(); chart = null; }
         if (!canvasEl) return;
@@ -306,6 +311,8 @@ var FloodChart = (function () {
 
         if (station.forecasts && station.forecasts.length) {
             var rawFC = filterToWindow(station.forecasts, xMin, xMax);
+            // Start the forecast line at the last observed point so the two
+            // lines join up instead of leaving a gap at "now"
             if (measuredData.length && rawFC.length) {
                 var last = measuredData[measuredData.length - 1];
                 forecastData.push({ x: last.x, y: last.y });

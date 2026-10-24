@@ -96,6 +96,13 @@ var FloodList = (function () {
         });
     }
 
+    /**
+     * Compare two stations for the list's current sort order:
+     *   'location' - keep the order of the GeoNB feed, which runs down the
+     *                Saint John River from upstream (Connors) to Saint John
+     *   'name'     - A to Z
+     *   'risk'     - most severe alert first, then A to Z
+     */
     function sortFn(a, b) {
         switch (currentSort) {
             case 'name':

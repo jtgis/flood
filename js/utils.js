@@ -19,6 +19,8 @@ var FloodUtils = (function () {
             .replace(/'/g, '&#39;');
     }
 
+    // Round to a number of decimal places (default 1), e.g. round(5.678, 2) -> 5.68.
+    // Returns null for missing values.
     function round(value, decimals) {
         if (value == null || isNaN(value)) return null;
         var factor = Math.pow(10, decimals || 1);
