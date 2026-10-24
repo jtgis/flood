@@ -112,13 +112,11 @@
         }
         document.getElementById('panel-issued').textContent = issuedText;
 
-        // Thresholds
-        var th = station.thresholds;
-        document.getElementById('thresh-advisory').textContent = th.advisory != null ? th.advisory + ' m' : '\u2014';
-        document.getElementById('thresh-watch').textContent    = th.watch != null    ? th.watch + ' m'    : '\u2014';
-        document.getElementById('thresh-warning').textContent  = th.warning != null  ? th.warning + ' m'  : '\u2014';
-        document.getElementById('thresh-flood').textContent    = th.flood != null    ? th.flood + ' m'    : '\u2014';
-        document.getElementById('thresh-record').textContent   = th.record != null   ? th.record + ' m'   : '\u2014';
+        // Thresholds: fills #thresh-advisory, #thresh-watch, ... (a dash if missing)
+        FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
+            var value = station.thresholds[level];
+            document.getElementById('thresh-' + level).textContent = value != null ? value + ' m' : '\u2014';
+        });
 
         // WSC link
         var wscLink = document.getElementById('panel-wsc-link');

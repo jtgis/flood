@@ -212,24 +212,16 @@ var FloodChart = (function () {
             var BAR_X = a.right + 5;
             var BAR_W = 10;
 
-            var defs = [
-                { key: 'advisory', color: COLORS.advisory },
-                { key: 'watch',    color: COLORS.watch },
-                { key: 'warning',  color: COLORS.warning },
-                { key: 'flood',    color: COLORS.flood },
-                { key: 'record',   color: COLORS.record }
-            ];
-
             ctx.save();
 
             // faint dotted threshold hint lines across the chart
-            defs.forEach(function (d) {
-                var val = th[d.key];
+            FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
+                var val = th[level];
                 if (val == null) return;
                 var y = yScale.getPixelForValue(val);
                 if (y < a.top || y > a.bottom) return;
                 ctx.beginPath();
-                ctx.strokeStyle = hexToRgba(d.color, 0.14);
+                ctx.strokeStyle = hexToRgba(COLORS[level], 0.14);
                 ctx.lineWidth   = 1;
                 ctx.setLineDash([2, 6]);
                 ctx.moveTo(a.left, y);
@@ -240,8 +232,8 @@ var FloodChart = (function () {
 
             // vertical zone bar: build zone stack from yMin upward
             var zoneStack = [{ val: yScale.min, color: COLORS.normal }];
-            defs.forEach(function (d) {
-                if (th[d.key] != null) zoneStack.push({ val: th[d.key], color: d.color });
+            FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
+                if (th[level] != null) zoneStack.push({ val: th[level], color: COLORS[level] });
             });
 
             for (var i = 0; i < zoneStack.length; i++) {
@@ -288,8 +280,8 @@ var FloodChart = (function () {
         // compute range from all relevant values
         var vals = [];
         if (level != null) vals.push(level);
-        ['advisory', 'watch', 'warning', 'flood', 'record'].forEach(function (k) {
-            if (th[k] != null) vals.push(th[k]);
+        FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
+            if (th[level] != null) vals.push(th[level]);
         });
         if (station.measures) {
             station.measures.forEach(function (m) {
@@ -303,12 +295,14 @@ var FloodChart = (function () {
         var pad = Math.max((hi - lo) * 0.12, 0.3);
         var rMin = lo - pad, rMax = hi + pad, total = rMax - rMin;
 
-        // build ordered zone boundaries
+        // build ordered zone boundaries (the gauge stops at flood: anything
+        // above flood level, including record, stays red)
         var boundaries = [{ val: rMin, color: COLORS.normal }];
-        if (th.advisory != null) boundaries.push({ val: th.advisory, color: COLORS.advisory });
-        if (th.watch    != null) boundaries.push({ val: th.watch,    color: COLORS.watch });
-        if (th.warning  != null) boundaries.push({ val: th.warning,  color: COLORS.warning });
-        if (th.flood    != null) boundaries.push({ val: th.flood,    color: COLORS.flood });
+        FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
+            if (level !== 'record' && th[level] != null) {
+                boundaries.push({ val: th[level], color: COLORS[level] });
+            }
+        });
         boundaries.push({ val: rMax, color: null });
 
         track.innerHTML = '';
@@ -393,8 +387,8 @@ var FloodChart = (function () {
         measuredData.forEach(function (p) { allY.push(p.y); });
         forecastData.forEach(function (p) { allY.push(p.y); });
         wscData.forEach(function (p) { allY.push(p.y); });
-        [th.advisory, th.watch, th.warning, th.flood, th.record].forEach(function (v) {
-            if (v != null) allY.push(v);
+        FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
+            if (th[level] != null) allY.push(th[level]);
         });
 
         var lo   = allY.length ? Math.min.apply(null, allY) : 0;

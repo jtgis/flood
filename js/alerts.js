@@ -8,6 +8,10 @@ var FloodAlerts = (function () {
     // Staleness threshold: readings older than this are considered stale
     var STALE_HOURS = 48;
 
+    // Names of the thresholds each station has (station.thresholds.advisory etc.),
+    // ordered from the lowest water level to the highest.
+    var THRESHOLD_LEVELS = ['advisory', 'watch', 'warning', 'flood', 'record'];
+
     /**
      * Colour for each alert level, e.g. COLORS.flood === '#dc2626'.
      * Read from the --c-* variables at the top of style.css, so that file is
@@ -97,6 +101,7 @@ var FloodAlerts = (function () {
         alertPriority: alertPriority,
         countAlerts: countAlerts,
         alertLabel: alertLabel,
-        COLORS: COLORS
+        COLORS: COLORS,
+        THRESHOLD_LEVELS: THRESHOLD_LEVELS
     };
 })();

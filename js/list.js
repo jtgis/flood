@@ -112,14 +112,12 @@ var FloodList = (function () {
     }
 
     function updateLegend(stations) {
+        // counts looks like { normal: 11, advisory: 0, ... }; each goes in #count-<level>
         var counts = FloodAlerts.countAlerts(stations);
-        var el;
-        el = document.getElementById('count-normal');   if (el) el.textContent = counts.normal;
-        el = document.getElementById('count-advisory'); if (el) el.textContent = counts.advisory;
-        el = document.getElementById('count-watch');    if (el) el.textContent = counts.watch;
-        el = document.getElementById('count-warning');  if (el) el.textContent = counts.warning;
-        el = document.getElementById('count-flood');    if (el) el.textContent = counts.flood;
-        el = document.getElementById('count-nodata');   if (el) el.textContent = counts.nodata;
+        Object.keys(counts).forEach(function (level) {
+            var el = document.getElementById('count-' + level);
+            if (el) el.textContent = counts[level];
+        });
     }
 
     function setShowNoData(val) {
