@@ -58,6 +58,40 @@ var FloodChart = (function () {
 
     /* ── 1. Zone-coloured gradient fill beneath the measured line ── */
 
+    /**
+     * Shade the area under one dataset's line. Each gap between two points
+     * becomes a thin strip down to the bottom of the chart, tinted by the
+     * alert zone of the average water level in that gap.
+     */
+    function fillByZone(ci, datasetIndex, th) {
+        if (datasetIndex == null) return;
+        var meta = ci.getDatasetMeta(datasetIndex);
+        if (!meta || meta.hidden || !meta.data || meta.data.length < 2) return;
+
+        var ctx    = ci.ctx;
+        var bottom = ci.chartArea.bottom;
+        var values = ci.data.datasets[datasetIndex].data;
+
+        for (var i = 0; i < meta.data.length - 1; i++) {
+            var p0 = meta.data[i];       // pixel position of this point
+            var p1 = meta.data[i + 1];   // pixel position of the next point
+            if (p0.skip || p1.skip) continue;
+
+            var avgLevel = (values[i].y + values[i + 1].y) / 2;
+            var zone = FloodAlerts.getAlertLevel(avgLevel, th);
+
+            // The 0.5px overlap stops thin gaps showing between strips
+            ctx.beginPath();
+            ctx.moveTo(p0.x - 0.5, p0.y);
+            ctx.lineTo(p1.x + 0.5, p1.y);
+            ctx.lineTo(p1.x + 0.5, bottom);
+            ctx.lineTo(p0.x - 0.5, bottom);
+            ctx.closePath();
+            ctx.fillStyle = FILLS[zone];
+            ctx.fill();
+        }
+    }
+
     var zoneFillPlugin = {
         id: 'zoneFill',
         beforeDatasetsDraw: function (ci) {
@@ -67,58 +101,15 @@ var FloodChart = (function () {
             var ctx  = ci.ctx;
             var area = ci.chartArea;
 
+            // Keep the fill inside the plotting area
             ctx.save();
             ctx.beginPath();
             ctx.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
             ctx.clip();
 
-            /* Draw WSC fill first (lower priority — observed will paint on top) */
-            var wi = _pluginWscIndex;
-            if (wi != null) {
-                var wscMeta = ci.getDatasetMeta(wi);
-                if (wscMeta && !wscMeta.hidden && wscMeta.data && wscMeta.data.length >= 2) {
-                    var wscRaw = ci.data.datasets[wi].data;
-                    for (var j = 0; j < wscMeta.data.length - 1; j++) {
-                        var w0 = wscMeta.data[j];
-                        var w1 = wscMeta.data[j + 1];
-                        if (w0.skip || w1.skip) continue;
-                        var avgWY = (wscRaw[j].y + wscRaw[j + 1].y) / 2;
-                        var wscZone = FloodAlerts.getAlertLevel(avgWY, th);
-                        ctx.beginPath();
-                        ctx.moveTo(w0.x - 0.5, w0.y);
-                        ctx.lineTo(w1.x + 0.5, w1.y);
-                        ctx.lineTo(w1.x + 0.5, area.bottom);
-                        ctx.lineTo(w0.x - 0.5, area.bottom);
-                        ctx.closePath();
-                        ctx.fillStyle = FILLS[wscZone];
-                        ctx.fill();
-                    }
-                }
-            }
-
-            /* Draw observed fill on top (higher priority) */
-            var mi = _pluginMeasuredIndex;
-            if (mi != null) {
-                var meta = ci.getDatasetMeta(mi);
-                if (meta && !meta.hidden && meta.data && meta.data.length >= 2) {
-                    var raw = ci.data.datasets[mi].data;
-                    for (var i = 0; i < meta.data.length - 1; i++) {
-                        var p0 = meta.data[i];
-                        var p1 = meta.data[i + 1];
-                        if (p0.skip || p1.skip) continue;
-                        var avgY = (raw[i].y + raw[i + 1].y) / 2;
-                        var zone = FloodAlerts.getAlertLevel(avgY, th);
-                        ctx.beginPath();
-                        ctx.moveTo(p0.x - 0.5, p0.y);
-                        ctx.lineTo(p1.x + 0.5, p1.y);
-                        ctx.lineTo(p1.x + 0.5, area.bottom);
-                        ctx.lineTo(p0.x - 0.5, area.bottom);
-                        ctx.closePath();
-                        ctx.fillStyle = FILLS[zone];
-                        ctx.fill();
-                    }
-                }
-            }
+            // WSC first, so the observed (FEWS) fill is painted on top of it
+            fillByZone(ci, _pluginWscIndex, th);
+            fillByZone(ci, _pluginMeasuredIndex, th);
 
             ctx.restore();
         }
