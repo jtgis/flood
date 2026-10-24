@@ -62,9 +62,10 @@ var FloodList = (function () {
 
             var dotColor = FloodMap.COLORS[station.alertLevel] || FloodMap.COLORS.nodata;
 
+            var safeName = FloodUtils.escapeHtml(station.name);
             li.innerHTML =
                 '<span class="station-dot" style="background:' + dotColor + '"></span>' +
-                '<span class="station-name" title="' + station.name + '">' + station.name + '</span>' +
+                '<span class="station-name" title="' + safeName + '">' + safeName + '</span>' +
                 '<span class="station-level">' + levelText + '</span>' +
                 '<span class="station-trend">' + FloodUtils.trendArrow(station.trend.direction) + '</span>';
 

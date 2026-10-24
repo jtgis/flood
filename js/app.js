@@ -337,7 +337,7 @@
             alertStations.forEach(function (s) {
                 html += '<li style="padding:4px 0;font-size:12px;">' +
                     '<span class="status-dot" style="background:' + colors[s.alertLevel] + '"></span> ' +
-                    '<strong>' + s.name + '</strong> \u2014 ' + FloodAlerts.alertLabel(s.alertLevel);
+                    '<strong>' + FloodUtils.escapeHtml(s.name) + '</strong> \u2014 ' + FloodAlerts.alertLabel(s.alertLevel);
                 if (s.currentLevel != null) html += ' (' + FloodUtils.round(s.currentLevel, 2) + ' m)';
                 html += '</li>';
             });

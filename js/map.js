@@ -141,7 +141,7 @@ var FloodMap = (function () {
             var extra = children.length - 1;
 
             var html =
-                '<div class="popup-name">' + name + '</div>' +
+                '<div class="popup-name">' + FloodUtils.escapeHtml(name) + '</div>' +
                 '<div class="popup-meta">' + stageBubble(level) + '<span class="popup-level">' + levelText + '</span></div>' +
                 (extra > 0 ? '<div class="popup-more">+' + extra + ' more station' + (extra > 1 ? 's' : '') + '</div>' : '');
 
@@ -367,7 +367,7 @@ var FloodMap = (function () {
                 : 'No data';
 
             marker.bindTooltip(
-                '<div class="popup-name">' + station.name + '</div>' +
+                '<div class="popup-name">' + FloodUtils.escapeHtml(station.name) + '</div>' +
                 '<div class="popup-meta">' + stageBubble(station.alertLevel) + '<span class="popup-level">' + levelText + '</span></div>',
                 { direction: 'top', offset: [0, -(sz / 2)], className: 'station-tooltip' }
             );

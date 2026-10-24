@@ -18,6 +18,20 @@ var FloodUtils = (function () {
         return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     }
 
+    /**
+     * Make text safe to put inside an HTML string. Characters like < and &
+     * would otherwise be read as markup and could break the page.
+     * Use this for any data from outside the app (e.g. station names).
+     */
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function round(value, decimals) {
         if (value == null || isNaN(value)) return null;
         var factor = Math.pow(10, decimals || 1);
@@ -86,6 +100,7 @@ var FloodUtils = (function () {
     return {
         formatDateTime: formatDateTime,
         formatDate: formatDate,
+        escapeHtml: escapeHtml,
         round: round,
         showToast: showToast,
         computeTrend: computeTrend,
