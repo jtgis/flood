@@ -226,13 +226,22 @@ var FloodData = (function () {
         return m ? m[1] : null;
     }
 
+    // How far back to fetch WSC readings. Matches the chart's 48h look-back;
+    // anything older would count as stale (FloodAlerts STALE_HOURS) anyway.
+    var WSC_HISTORY_HOURS = 48;
+
     /**
-     * Fetch last 7 days of realtime water-level data for a single WSC station.
+     * Fetch the last WSC_HISTORY_HOURS of realtime water-level data for a
+     * single WSC station.
      * Returns an array of { dtime, wlvl } readings sorted chronologically.
      */
     function fetchWSCStation(stnNumber) {
+        var since = new Date(Date.now() - WSC_HISTORY_HOURS * 3600000).toISOString();
         var url = URLS.wscRealtime
             + '?STATION_NUMBER=' + stnNumber
+            + '&datetime=' + since + '/..'           // only readings from 'since' onward
+            + '&properties=DATETIME,LEVEL'           // only the two fields we use...
+            + '&skipGeometry=true'                   // ...and not the station location
             + '&limit=2000'
             + '&sortby=-DATETIME'
             + '&f=json';
