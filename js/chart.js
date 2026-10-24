@@ -5,9 +5,8 @@
      • Zone-colored line: segment color shifts through blue → green →
        yellow → orange → red as readings cross threshold zones
      • Zone-tinted gradient fill under the line (custom canvas plugin)
-     • Horizontal gauge bar in the panel showing current level position
-     • Small threshold tick marks on the right chart edge with faint
-       hint lines instead of full horizontal annotations
+     • Vertical zone bar on the right chart edge, with faint threshold
+       hint lines and a dot for the current level
      • Custom "NOW" badge & crosshair plugins
      • WSC data rendered as dotted line with visible dot markers
      • White-themed tooltip matching the panel style
@@ -266,70 +265,6 @@ var FloodChart = (function () {
     };
 
     /* ================================================================
-       Horizontal Level Gauge
-       ================================================================ */
-
-    function updateGauge(station) {
-        var track  = document.getElementById('gauge-track');
-        var marker = document.getElementById('gauge-marker');
-        if (!track || !marker) return;
-
-        var th    = station.thresholds;
-        var level = station.currentLevel;
-
-        // compute range from all relevant values
-        var vals = [];
-        if (level != null) vals.push(level);
-        FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
-            if (th[level] != null) vals.push(th[level]);
-        });
-        if (station.measures) {
-            station.measures.forEach(function (m) {
-                if (m.wlvl != null) vals.push(m.wlvl);
-            });
-        }
-        if (!vals.length) { marker.style.display = 'none'; return; }
-
-        var lo  = Math.min.apply(null, vals);
-        var hi  = Math.max.apply(null, vals);
-        var pad = Math.max((hi - lo) * 0.12, 0.3);
-        var rMin = lo - pad, rMax = hi + pad, total = rMax - rMin;
-
-        // build ordered zone boundaries (the gauge stops at flood: anything
-        // above flood level, including record, stays red)
-        var boundaries = [{ val: rMin, color: COLORS.normal }];
-        FloodAlerts.THRESHOLD_LEVELS.forEach(function (level) {
-            if (level !== 'record' && th[level] != null) {
-                boundaries.push({ val: th[level], color: COLORS[level] });
-            }
-        });
-        boundaries.push({ val: rMax, color: null });
-
-        track.innerHTML = '';
-        for (var i = 0; i < boundaries.length - 1; i++) {
-            var from = boundaries[i].val;
-            var to   = boundaries[i + 1].val;
-            var pct  = ((to - from) / total) * 100;
-            if (pct <= 0) continue;
-            var seg = document.createElement('div');
-            seg.className    = 'sp-gauge-seg';
-            seg.style.width  = pct + '%';
-            seg.style.background = boundaries[i].color;
-            track.appendChild(seg);
-        }
-
-        // position needle marker
-        if (level != null) {
-            var pos = ((level - rMin) / total) * 100;
-            pos = Math.max(0, Math.min(100, pos));
-            marker.style.left    = pos + '%';
-            marker.style.display = '';
-        } else {
-            marker.style.display = 'none';
-        }
-    }
-
-    /* ================================================================
        Init / Overlay
        ================================================================ */
 
@@ -481,9 +416,6 @@ var FloodChart = (function () {
                 order: 3
             });
         }
-
-        /* ── update gauge bar ── */
-        updateGauge(station);
 
         /* ── set plugin state before chart creation so first render is correct ── */
         _pluginThresholds    = th;

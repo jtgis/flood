@@ -460,39 +460,6 @@ a { color: var(--c-normal); }
 }
 .sp-close:hover { background: #f1f5f9; color: #0f172a; }
 
-/* Gauge bar */
-.sp-gauge {
-    position: relative;
-    margin: 0 16px 6px;
-    height: 8px;
-}
-.sp-gauge-track {
-    display: flex;
-    height: 6px;
-    border-radius: 3px;
-    overflow: hidden;
-    background: #f1f5f9;
-}
-.sp-gauge-seg {
-    height: 100%;
-    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sp-gauge-seg:first-child { border-radius: 3px 0 0 3px; }
-.sp-gauge-seg:last-child  { border-radius: 0 3px 3px 0; }
-.sp-gauge-marker {
-    position: absolute;
-    top: 50%;
-    width: 14px;
-    height: 14px;
-    background: #0f172a;
-    border: 2.5px solid #fff;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.25), 0 0 0 2px rgba(15,23,42,0.08);
-    z-index: 2;
-    transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
 /* Meta bar */
 .sp-meta {
     display: flex;
