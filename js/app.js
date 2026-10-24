@@ -14,7 +14,7 @@
 
         setupSplashScreen();
         setupLeftControls();
-        setupLegendPanel();
+        setupStationListPanel();
         setupLayersPanel();
         setupBottomBar();
         setupModals();
@@ -158,7 +158,7 @@
             FloodMap.zoomOut();
         });
         document.getElementById('btn-layers').addEventListener('click', function () {
-            toggleLayersPanel();
+            togglePanel('layers-panel');
         });
         document.getElementById('btn-locate').addEventListener('click', function () {
             if ('geolocation' in navigator) {
@@ -172,20 +172,20 @@
         });
     }
 
-    // -- Legend panel --
+    // -- Side panels (station list and layers) --
 
-    function setupLegendPanel() {
-        document.getElementById('legend-close').addEventListener('click', function () {
-            toggleLegendPanel(false);
+    function setupStationListPanel() {
+        document.getElementById('station-list-close').addEventListener('click', function () {
+            togglePanel('station-list-panel', false);
         });
 
-        // Collapsible sections in stations panel
+        // Collapsible sections in station list panel
         setupCollapsible('toggle-stations', 'station-section');
     }
 
     function setupLayersPanel() {
         document.getElementById('layers-close').addEventListener('click', function () {
-            toggleLayersPanel(false);
+            togglePanel('layers-panel', false);
         });
 
         // Collapsible sections in layers panel
@@ -193,29 +193,23 @@
         setupCollapsible('toggle-flood-layers', 'flood-layers-section');
     }
 
-    function toggleLegendPanel(forceState) {
-        var panel = document.getElementById('legend-panel');
-        if (typeof forceState === 'boolean') {
-            panel.classList.toggle('hidden', !forceState);
+    /**
+     * Open or close one of the two side panels. Only one can be open at a
+     * time, so opening one closes the other.
+     *   panelId: 'station-list-panel' or 'layers-panel'
+     *   open:    true to open, false to close, or leave out to flip it
+     */
+    function togglePanel(panelId, open) {
+        var panel = document.getElementById(panelId);
+        if (typeof open === 'boolean') {
+            panel.classList.toggle('hidden', !open);
         } else {
             panel.classList.toggle('hidden');
         }
-        // Close layers panel when opening stations
-        if (!panel.classList.contains('hidden')) {
-            document.getElementById('layers-panel').classList.add('hidden');
-        }
-    }
 
-    function toggleLayersPanel(forceState) {
-        var panel = document.getElementById('layers-panel');
-        if (typeof forceState === 'boolean') {
-            panel.classList.toggle('hidden', !forceState);
-        } else {
-            panel.classList.toggle('hidden');
-        }
-        // Close stations panel when opening layers
         if (!panel.classList.contains('hidden')) {
-            document.getElementById('legend-panel').classList.add('hidden');
+            var otherId = panelId === 'layers-panel' ? 'station-list-panel' : 'layers-panel';
+            document.getElementById(otherId).classList.add('hidden');
         }
     }
 
@@ -265,7 +259,7 @@
 
     function setupBottomBar() {
         document.getElementById('bb-stations').addEventListener('click', function () {
-            toggleLegendPanel();
+            togglePanel('station-list-panel');
         });
         document.getElementById('bb-summary').addEventListener('click', function () {
             showSummary();

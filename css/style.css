@@ -130,7 +130,7 @@ a { color: var(--c-normal); }
 .ctrl-btn:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,.5); outline: none; }
 
 /* ---------- Legend / Stations panel ---------- */
-.legend-panel {
+.station-list-panel {
     position: fixed;
     top: 16px;
     right: 16px;
@@ -148,7 +148,7 @@ a { color: var(--c-normal); }
     overflow: hidden;
     transition: opacity var(--transition), transform var(--transition);
 }
-.legend-panel.hidden {
+.station-list-panel.hidden {
     opacity: 0;
     pointer-events: none;
     transform: translateX(20px);
@@ -1015,7 +1015,7 @@ a { color: var(--c-normal); }
     .left-controls { top: 70px; left: 12px; gap: 6px; }
     .ctrl-btn { width: 48px; height: 48px; }
 
-    .legend-panel {
+    .station-list-panel {
         width: calc(100vw - 24px);
         right: 12px;
         top: 12px;
