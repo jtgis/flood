@@ -18,7 +18,6 @@ var FloodData = (function () {
                 return r.text();
             })
             .then(function (text) {
-                text = text.replace(/\s+xmlns\s*=\s*"[^"]*"/g, '');
                 return new DOMParser().parseFromString(text, 'application/xml');
             });
     }
