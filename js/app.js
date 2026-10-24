@@ -78,6 +78,7 @@
 
         FloodMap.flyTo(station);
         FloodMap.highlightStation(station.stationID);
+        FloodList.setSelected(station.stationID);
 
         // Open station panel
         var panel = document.getElementById('station-panel');
@@ -144,6 +145,7 @@
         panel.setAttribute('aria-hidden', 'true');
         FloodChart.destroy();
         FloodMap.highlightStation(null);
+        FloodList.setSelected(null);
         if (window.location.hash) history.replaceState(null, '', window.location.pathname);
     }
 

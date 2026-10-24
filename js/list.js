@@ -33,13 +33,22 @@ var FloodList = (function () {
         render();
     }
 
+    /**
+     * The stations currently shown in the list, in display order.
+     * No-data stations are left out unless the "Show No-Data" box is ticked.
+     */
+    function visibleStations() {
+        var filtered = stations.filter(function (s) {
+            return showNoData || s.alertLevel !== 'nodata';
+        });
+        return filtered.sort(sortFn);
+    }
+
     function render() {
         if (!listEl) return;
-        var filtered = showNoData ? stations.slice() : stations.filter(function (s) { return s.alertLevel !== 'nodata'; });
-        var sorted = filtered.sort(sortFn);
 
         listEl.innerHTML = '';
-        sorted.forEach(function (station) {
+        visibleStations().forEach(function (station) {
             var li = document.createElement('li');
             li.className = 'station-item ' + station.alertLevel;
             if (station.stationID === selectedId) li.classList.add('selected');
@@ -68,13 +77,22 @@ var FloodList = (function () {
         });
     }
 
+    // Clicking a list item hands the station to app.js, which opens the
+    // panel and calls setSelected() so the list and map stay in sync.
     function selectStation(station) {
-        selectedId = station.stationID;
-        var items = listEl.querySelectorAll('.station-item');
-        items.forEach(function (item) {
+        if (typeof onSelect === 'function') onSelect(station);
+    }
+
+    /**
+     * Highlight a station in the list (or clear it with null).
+     * Called by app.js whenever a station is picked, from the list or the map.
+     */
+    function setSelected(stationID) {
+        selectedId = stationID;
+        if (!listEl) return;
+        listEl.querySelectorAll('.station-item').forEach(function (item) {
             item.classList.toggle('selected', item.getAttribute('data-id') === selectedId);
         });
-        if (typeof onSelect === 'function') onSelect(station);
     }
 
     function sortFn(a, b) {
@@ -108,22 +126,25 @@ var FloodList = (function () {
         render();
     }
 
+    /**
+     * Move to the next (+1) or previous (-1) station in the visible list,
+     * wrapping around at either end. Used by the left/right arrow keys.
+     */
     function selectByOffset(offset) {
-        if (!stations.length) return;
-        var sorted = stations.slice().sort(sortFn);
-        var curIdx = -1;
-        for (var i = 0; i < sorted.length; i++) {
-            if (sorted[i].stationID === selectedId) { curIdx = i; break; }
-        }
+        var visible = visibleStations();
+        if (!visible.length) return;
+
+        var curIdx = visible.findIndex(function (s) { return s.stationID === selectedId; });
         var newIdx = curIdx + offset;
-        if (newIdx < 0) newIdx = sorted.length - 1;
-        if (newIdx >= sorted.length) newIdx = 0;
-        selectStation(sorted[newIdx]);
+        if (newIdx < 0) newIdx = visible.length - 1;
+        if (newIdx >= visible.length) newIdx = 0;
+        selectStation(visible[newIdx]);
     }
 
     return {
         init: init,
         setStations: setStations,
+        setSelected: setSelected,
         updateLegend: updateLegend,
         selectByOffset: selectByOffset,
         setShowNoData: setShowNoData
