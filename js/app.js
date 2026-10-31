@@ -5,16 +5,16 @@
 (function () {
     'use strict';
 
-    var allStations = [];
+    let allStations = [];
 
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', () => {
         FloodMap.init();
         FloodChart.init();
         FloodList.init(onStationSelect);
 
         setupSplashScreen();
         setupLeftControls();
-        setupLegendPanel();
+        setupStationListPanel();
         setupLayersPanel();
         setupBottomBar();
         setupModals();
@@ -29,98 +29,98 @@
     // -- Splash Screen --
 
     function setupSplashScreen() {
-        var splash = document.getElementById('splash-screen');
+        const splash = document.getElementById('splash-screen');
         if (!splash) return;
-        document.getElementById('splash-enter').addEventListener('click', function () {
+        document.getElementById('splash-enter').addEventListener('click', () => {
             splash.classList.add('hidden');
-            setTimeout(function () { splash.remove(); }, 500);
+            setTimeout(() => splash.remove(), 500);   // after the fade-out
         });
     }
 
     // -- Data loading --
 
-    function loadData() {
-        FloodData.loadAll()
-            .then(function (result) {
-                allStations = result.stations;
+    async function loadData() {
+        let result;
+        try {
+            result = await FloodData.loadAll();
+        } catch (err) {
+            console.error('Failed to load data:', err);
+            FloodUtils.showToast('Failed to load station data. Check console.', 8000);
+            return;
+        }
+        allStations = result.stations;
 
-                // Update timestamp in legend
-                if (result.creationDate) {
-                    var tsEl = document.getElementById('data-timestamp');
-                    if (tsEl) tsEl.textContent = 'Data: ' + result.creationDate;
-                }
+        // Show the FEWS export date at the bottom of the station list panel
+        if (result.creationDate) {
+            const tsEl = document.getElementById('data-timestamp');
+            if (tsEl) tsEl.textContent = `Data: ${result.creationDate}`;
+        }
 
-                // Populate map
-                FloodMap.setStations(allStations, onStationSelect);
+        // Populate map, list and legend counts
+        FloodMap.setStations(allStations, onStationSelect);
+        FloodList.setStations(allStations);
+        FloodList.updateLegend(allStations);
 
-                // Populate list & legend counts
-                FloodList.setStations(allStations);
-                FloodList.updateLegend(allStations);
-
-                // Check URL hash
-                var hash = window.location.hash;
-                if (hash && hash.indexOf('#station/') === 0) {
-                    var id = decodeURIComponent(hash.replace('#station/', ''));
-                    var found = allStations.find(function (s) { return s.stationID === id || s.name === id; });
-                    if (found) onStationSelect(found);
-                }
-            })
-            .catch(function (err) {
-                console.error('Failed to load data:', err);
-                FloodUtils.showToast('Failed to load station data. Check console.', 8000);
-            });
+        // Open a station straight away if the link has one, e.g.
+        // index.html#station/01AK003 (onStationSelect sets this hash)
+        const hash = window.location.hash;
+        if (hash.startsWith('#station/')) {
+            const id = decodeURIComponent(hash.slice('#station/'.length));
+            const found = allStations.find(s => s.stationID === id || s.name === id);
+            if (found) onStationSelect(found);
+        }
     }
 
     // -- Station select --
 
+    // Called when a station is picked from the map, the list, the arrow keys
+    // or a #station/ link: highlights it everywhere and opens its panel.
     function onStationSelect(station) {
-        window.location.hash = 'station/' + encodeURIComponent(station.stationID);
+        window.location.hash = `station/${encodeURIComponent(station.stationID)}`;
 
         FloodMap.flyTo(station);
         FloodMap.highlightStation(station.stationID);
+        FloodList.setSelected(station.stationID);
 
         // Open station panel
-        var panel = document.getElementById('station-panel');
+        const panel = document.getElementById('station-panel');
         panel.classList.remove('hidden');
         panel.setAttribute('aria-hidden', 'false');
 
         // Name + badge
         document.getElementById('panel-station-name').textContent = station.name;
-        var badge = document.getElementById('panel-alert-badge');
-        badge.className = 'sp-badge ' + station.alertLevel;
+        const badge = document.getElementById('panel-alert-badge');
+        badge.className = `sp-badge ${station.alertLevel}`;
         badge.textContent = FloodAlerts.alertLabel(station.alertLevel);
 
         // Meta
         document.getElementById('panel-current-level').textContent =
-            station.currentLevel != null ? FloodUtils.round(station.currentLevel, 2) + ' m' : '\u2014';
+            station.currentLevel != null ? `${FloodUtils.round(station.currentLevel, 2)} m` : '—';
 
-        var trend = station.trend || { direction: 'stable', rate: 0 };
-        var trendEl = document.getElementById('panel-trend');
-        trendEl.textContent = FloodUtils.trendArrow(trend.direction) + ' ' +
-            trend.direction.charAt(0).toUpperCase() + trend.direction.slice(1) +
-            (trend.rate > 0 ? ' (' + trend.rate + ' m/hr)' : '');
+        // e.g. "↑ Rising (0.05 m/hr)" or "→ Stable" (no rate shown when stable)
+        const trend = station.trend || { direction: 'stable', rate: 0 };
+        const direction = trend.direction.charAt(0).toUpperCase() + trend.direction.slice(1);
+        const rateText = trend.direction !== 'stable' ? ` (${trend.rate} m/hr)` : '';
+        document.getElementById('panel-trend').textContent =
+            `${FloodUtils.trendArrow(trend.direction)} ${direction}${rateText}`;
 
-        var issuedText = '\u2014';
+        // Last reading time in the viewer's time zone, e.g. "Oct 23, 9:05 PM"
+        let issuedText = '—';
         if (station.lastReadingTime) {
-            var d = station.lastReadingTime;
-            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            issuedText = months[d.getMonth()] + ' ' + d.getDate() + ', ' +
-                         ((d.getHours() % 12) || 12) + ':' +
-                         (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + ' ' +
-                         (d.getHours() >= 12 ? 'PM' : 'AM');
+            issuedText = station.lastReadingTime.toLocaleString('en-US', {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            });
         }
         document.getElementById('panel-issued').textContent = issuedText;
 
-        // Thresholds
-        var th = station.thresholds;
-        document.getElementById('thresh-advisory').textContent = th.advisory != null ? th.advisory + ' m' : '\u2014';
-        document.getElementById('thresh-watch').textContent    = th.watch != null    ? th.watch + ' m'    : '\u2014';
-        document.getElementById('thresh-warning').textContent  = th.warning != null  ? th.warning + ' m'  : '\u2014';
-        document.getElementById('thresh-flood').textContent    = th.flood != null    ? th.flood + ' m'    : '\u2014';
-        document.getElementById('thresh-record').textContent   = th.record != null   ? th.record + ' m'   : '\u2014';
+        // Thresholds: fills #thresh-advisory, #thresh-watch, ... (a dash if missing)
+        FloodAlerts.THRESHOLD_LEVELS.forEach(level => {
+            const value = station.thresholds[level];
+            document.getElementById(`thresh-${level}`).textContent = value != null ? `${value} m` : '—';
+        });
 
         // WSC link
-        var wscLink = document.getElementById('panel-wsc-link');
+        const wscLink = document.getElementById('panel-wsc-link');
         if (station.wscUrlEn && station.wscUrlEn !== 'NONE') {
             wscLink.href = station.wscUrlEn;
             wscLink.style.display = '';
@@ -139,55 +139,48 @@
     }
 
     function closePanel() {
-        var panel = document.getElementById('station-panel');
+        const panel = document.getElementById('station-panel');
         panel.classList.add('hidden');
         panel.setAttribute('aria-hidden', 'true');
         FloodChart.destroy();
         FloodMap.highlightStation(null);
+        FloodList.setSelected(null);
         if (window.location.hash) history.replaceState(null, '', window.location.pathname);
     }
 
     // -- Left controls --
 
     function setupLeftControls() {
-        document.getElementById('btn-reset').addEventListener('click', function () {
-            FloodMap.resetView();
-        });
-        document.getElementById('btn-zoom-in').addEventListener('click', function () {
-            FloodMap.zoomIn();
-        });
-        document.getElementById('btn-zoom-out').addEventListener('click', function () {
-            FloodMap.zoomOut();
-        });
-        document.getElementById('btn-layers').addEventListener('click', function () {
-            toggleLayersPanel();
-        });
-        document.getElementById('btn-locate').addEventListener('click', function () {
-            if ('geolocation' in navigator) {
-                navigator.geolocation.getCurrentPosition(function (pos) {
-                    var map = FloodMap.getMap();
+        document.getElementById('btn-reset').addEventListener('click', () => FloodMap.resetView());
+        document.getElementById('btn-zoom-in').addEventListener('click', () => FloodMap.zoomIn());
+        document.getElementById('btn-zoom-out').addEventListener('click', () => FloodMap.zoomOut());
+        document.getElementById('btn-layers').addEventListener('click', () => togglePanel('layers-panel'));
+        document.getElementById('btn-locate').addEventListener('click', () => {
+            if (!('geolocation' in navigator)) return;
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    const map = FloodMap.getMap();
                     if (map) map.flyTo([pos.coords.latitude, pos.coords.longitude], 11, { duration: 0.8 });
-                }, function () {
-                    FloodUtils.showToast('Location not available', 3000);
-                });
-            }
+                },
+                () => FloodUtils.showToast('Location not available', 3000)
+            );
         });
     }
 
-    // -- Legend panel --
+    // -- Side panels (station list and layers) --
 
-    function setupLegendPanel() {
-        document.getElementById('legend-close').addEventListener('click', function () {
-            toggleLegendPanel(false);
+    function setupStationListPanel() {
+        document.getElementById('station-list-close').addEventListener('click', () => {
+            togglePanel('station-list-panel', false);
         });
 
-        // Collapsible sections in stations panel
+        // Collapsible sections in station list panel
         setupCollapsible('toggle-stations', 'station-section');
     }
 
     function setupLayersPanel() {
-        document.getElementById('layers-close').addEventListener('click', function () {
-            toggleLayersPanel(false);
+        document.getElementById('layers-close').addEventListener('click', () => {
+            togglePanel('layers-panel', false);
         });
 
         // Collapsible sections in layers panel
@@ -195,37 +188,31 @@
         setupCollapsible('toggle-flood-layers', 'flood-layers-section');
     }
 
-    function toggleLegendPanel(forceState) {
-        var panel = document.getElementById('legend-panel');
-        if (typeof forceState === 'boolean') {
-            panel.classList.toggle('hidden', !forceState);
+    /**
+     * Open or close one of the two side panels. Only one can be open at a
+     * time, so opening one closes the other.
+     *   panelId: 'station-list-panel' or 'layers-panel'
+     *   open:    true to open, false to close, or leave out to flip it
+     */
+    function togglePanel(panelId, open) {
+        const panel = document.getElementById(panelId);
+        if (typeof open === 'boolean') {
+            panel.classList.toggle('hidden', !open);
         } else {
             panel.classList.toggle('hidden');
         }
-        // Close layers panel when opening stations
-        if (!panel.classList.contains('hidden')) {
-            document.getElementById('layers-panel').classList.add('hidden');
-        }
-    }
 
-    function toggleLayersPanel(forceState) {
-        var panel = document.getElementById('layers-panel');
-        if (typeof forceState === 'boolean') {
-            panel.classList.toggle('hidden', !forceState);
-        } else {
-            panel.classList.toggle('hidden');
-        }
-        // Close stations panel when opening layers
         if (!panel.classList.contains('hidden')) {
-            document.getElementById('legend-panel').classList.add('hidden');
+            const otherId = panelId === 'layers-panel' ? 'station-list-panel' : 'layers-panel';
+            document.getElementById(otherId).classList.add('hidden');
         }
     }
 
     function setupCollapsible(headerId, sectionId) {
-        var header = document.getElementById(headerId);
-        var section = document.getElementById(sectionId);
+        const header = document.getElementById(headerId);
+        const section = document.getElementById(sectionId);
         if (!header || !section) return;
-        header.addEventListener('click', function () {
+        header.addEventListener('click', () => {
             header.classList.toggle('collapsed');
             section.classList.toggle('collapsed-content');
         });
@@ -235,17 +222,16 @@
 
     function setupOverlayToggles() {
         // Individual flood extent layer toggles
-        var floodCheckboxes = document.querySelectorAll('[data-layer]');
-        floodCheckboxes.forEach(function (chk) {
-            chk.addEventListener('change', function () {
+        document.querySelectorAll('[data-layer]').forEach(chk => {
+            chk.addEventListener('change', () => {
                 FloodMap.toggleOverlay(chk.getAttribute('data-layer'), chk.checked);
             });
         });
 
         // Show/hide no-data stations toggle
-        var chkNoData = document.getElementById('chk-nodata');
+        const chkNoData = document.getElementById('chk-nodata');
         if (chkNoData) {
-            chkNoData.addEventListener('change', function () {
+            chkNoData.addEventListener('change', () => {
                 FloodMap.setShowNoData(chkNoData.checked);
                 FloodList.setShowNoData(chkNoData.checked);
             });
@@ -255,25 +241,22 @@
     // -- Basemap radios --
 
     function setupBasemapRadios() {
-        var radios = document.querySelectorAll('input[name="basemap"]');
-        radios.forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                FloodMap.switchBasemap(radio.value);
-            });
+        document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+            radio.addEventListener('change', () => FloodMap.switchBasemap(radio.value));
         });
     }
 
     // -- Bottom bar --
 
     function setupBottomBar() {
-        document.getElementById('bb-stations').addEventListener('click', function () {
-            toggleLegendPanel();
+        document.getElementById('bb-stations').addEventListener('click', () => {
+            togglePanel('station-list-panel');
         });
-        document.getElementById('bb-summary').addEventListener('click', function () {
+        document.getElementById('bb-summary').addEventListener('click', () => {
             showSummary();
             toggleModal('summary-modal', true);
         });
-        document.getElementById('bb-help').addEventListener('click', function () {
+        document.getElementById('bb-help').addEventListener('click', () => {
             toggleModal('help-modal', true);
         });
     }
@@ -282,66 +265,63 @@
 
     function setupModals() {
         // Close buttons
-        document.querySelectorAll('.modal-close').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var id = btn.getAttribute('data-close');
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-close');
                 if (id) toggleModal(id, false);
             });
         });
 
-        // Click overlay to close
-        document.querySelectorAll('.modal-overlay').forEach(function (overlay) {
-            overlay.addEventListener('click', function (e) {
+        // Click the dark area around a modal to close it
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', e => {
                 if (e.target === overlay) overlay.classList.add('hidden');
             });
         });
     }
 
     function toggleModal(id, show) {
-        var el = document.getElementById(id);
+        const el = document.getElementById(id);
         if (!el) return;
         el.classList.toggle('hidden', !show);
     }
 
     // -- Summary --
 
+    // Fill the summary modal: a count per alert level, then the stations
+    // that currently have an alert, most severe first.
     function showSummary() {
-        var body = document.getElementById('summary-body');
+        const body = document.getElementById('summary-body');
         if (!allStations.length) {
             body.innerHTML = '<p>No station data loaded.</p>';
             return;
         }
 
-        var counts = FloodAlerts.countAlerts(allStations);
-        var colors = FloodMap.COLORS;
+        const counts = FloodAlerts.countAlerts(allStations);
+        const colors = FloodAlerts.COLORS;
+        const dot = level => `<span class="status-dot" style="background:${colors[level]}"></span>`;
 
-        var html = '<table class="summary-table"><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>';
-        var levels = ['flood', 'warning', 'watch', 'advisory', 'normal', 'nodata'];
-        levels.forEach(function (lvl) {
-            html += '<tr><td><span class="status-dot" style="background:' + colors[lvl] + '"></span>' +
-                FloodAlerts.alertLabel(lvl) + '</td><td>' + (counts[lvl] || 0) + '</td></tr>';
-        });
-        html += '</tbody></table>';
+        const rows = ['flood', 'warning', 'watch', 'advisory', 'normal', 'nodata'].map(level => `
+            <tr><td>${dot(level)}${FloodAlerts.alertLabel(level)}</td><td>${counts[level] || 0}</td></tr>`);
 
-        // List stations with active alerts
-        var alertStations = allStations.filter(function (s) {
-            return s.alertLevel !== 'normal' && s.alertLevel !== 'nodata';
-        }).sort(function (a, b) {
-            return FloodAlerts.alertPriority(b.alertLevel) - FloodAlerts.alertPriority(a.alertLevel);
-        });
+        let html = `
+            <table class="summary-table">
+                <thead><tr><th>Status</th><th>Count</th></tr></thead>
+                <tbody>${rows.join('')}</tbody>
+            </table>`;
+
+        const alertStations = allStations
+            .filter(s => s.alertLevel !== 'normal' && s.alertLevel !== 'nodata')
+            .sort((a, b) => FloodAlerts.alertPriority(b.alertLevel) - FloodAlerts.alertPriority(a.alertLevel));
 
         if (alertStations.length > 0) {
-            html += '<h4 style="margin:12px 0 6px;font-size:13px;">Active Alerts</h4><ul style="list-style:none;padding:0;">';
-            alertStations.forEach(function (s) {
-                html += '<li style="padding:4px 0;font-size:12px;">' +
-                    '<span class="status-dot" style="background:' + colors[s.alertLevel] + '"></span> ' +
-                    '<strong>' + s.name + '</strong> \u2014 ' + FloodAlerts.alertLabel(s.alertLevel);
-                if (s.currentLevel != null) html += ' (' + FloodUtils.round(s.currentLevel, 2) + ' m)';
-                html += '</li>';
+            const items = alertStations.map(s => {
+                const levelText = s.currentLevel != null ? ` (${FloodUtils.round(s.currentLevel, 2)} m)` : '';
+                return `<li>${dot(s.alertLevel)} <strong>${FloodUtils.escapeHtml(s.name)}</strong> — ${FloodAlerts.alertLabel(s.alertLevel)}${levelText}</li>`;
             });
-            html += '</ul>';
+            html += `<h4 class="summary-alerts-title">Active Alerts</h4><ul class="summary-alert-list">${items.join('')}</ul>`;
         } else {
-            html += '<p style="margin-top:10px;font-size:13px;">No active flood alerts.</p>';
+            html += '<p class="summary-empty">No active flood alerts.</p>';
         }
 
         body.innerHTML = html;
@@ -349,20 +329,27 @@
 
     // -- Keyboard nav --
 
+    /**
+     * Escape:      close an open modal, otherwise close the station panel.
+     * Left/Right:  while the station panel is open, show the previous/next
+     *              station in the list.
+     */
     function setupKeyboardNav() {
-        document.addEventListener('keydown', function (e) {
+        document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
-                // Close modals first, then panel
-                var openModal = document.querySelector('.modal-overlay:not(.hidden)');
-                if (openModal) { openModal.classList.add('hidden'); return; }
-                closePanel();
+                const openModal = document.querySelector('.modal-overlay:not(.hidden)');
+                if (openModal) {
+                    openModal.classList.add('hidden');
+                } else {
+                    closePanel();
+                }
                 return;
             }
-            var panel = document.getElementById('station-panel');
-            if (panel && !panel.classList.contains('hidden')) {
-                if (e.key === 'ArrowLeft')  { e.preventDefault(); FloodList.selectByOffset(-1); }
-                if (e.key === 'ArrowRight') { e.preventDefault(); FloodList.selectByOffset(1); }
-            }
+
+            const panel = document.getElementById('station-panel');
+            if (!panel || panel.classList.contains('hidden')) return;
+            if (e.key === 'ArrowLeft')  { e.preventDefault(); FloodList.selectByOffset(-1); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); FloodList.selectByOffset(1); }
         });
     }
 

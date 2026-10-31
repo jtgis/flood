@@ -2,84 +2,89 @@
    utils.js - Shared helpers
    ========================================================================== */
 
-var FloodUtils = (function () {
+const FloodUtils = (function () {
     'use strict';
 
-    function formatDateTime(d) {
-        if (!(d instanceof Date) || isNaN(d)) return '\u2014';
-        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
-               ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    /**
+     * Make text safe to put inside an HTML string. Characters like < and &
+     * would otherwise be read as markup and could break the page.
+     * Use this for any data from outside the app (e.g. station names).
+     */
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
-    function formatDate(d) {
-        if (!(d instanceof Date) || isNaN(d)) return '\u2014';
-        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    }
-
-    function round(value, decimals) {
+    // Round to a number of decimal places (default 1), e.g. round(5.678, 2) -> 5.68.
+    // Returns null for missing values.
+    function round(value, decimals = 1) {
         if (value == null || isNaN(value)) return null;
-        var factor = Math.pow(10, decimals || 1);
+        const factor = Math.pow(10, decimals);
         return Math.round(value * factor) / factor;
     }
 
-    function showToast(message, duration) {
-        duration = duration || 4000;
-        var el = document.getElementById('toast');
+    /**
+     * Return the newest reading that has a water level, or null if there is
+     * none. Readings are { dtime, wlvl } objects in time order; missing
+     * values have wlvl === null.
+     */
+    function lastValidReading(readings) {
+        if (!readings) return null;
+        for (let i = readings.length - 1; i >= 0; i--) {
+            if (readings[i].wlvl != null) return readings[i];
+        }
+        return null;
+    }
+
+    function showToast(message, duration = 4000) {
+        const el = document.getElementById('toast');
         if (!el) return;
         el.textContent = message;
         el.classList.remove('toast-hidden');
         clearTimeout(el._timer);
-        el._timer = setTimeout(function () {
-            el.classList.add('toast-hidden');
-        }, duration);
+        el._timer = setTimeout(() => el.classList.add('toast-hidden'), duration);
     }
 
+    /**
+     * Work out whether the water is rising, falling or stable, using the
+     * change between the first and last valid readings in the final 6 hours.
+     * Readings with no value (null) are ignored. This matters because in JS
+     * null - 5 === -5, so a missing last reading would look like a big drop.
+     */
     function computeTrend(readings) {
-        if (!readings || readings.length < 2) return { direction: 'stable', rate: 0 };
-        var last = readings[readings.length - 1];
-        var cutoff = new Date(last.dtime.getTime() - 6 * 3600 * 1000);
-        var recent = readings.filter(function (r) { return r.dtime >= cutoff && r.wlvl !== -999 && r.wlvl != null; });
-        if (recent.length < 2) return { direction: 'stable', rate: 0 };
+        const stable = { direction: 'stable', rate: 0 };
+        if (!readings) return stable;
 
-        var first = recent[0];
-        var deltaLevel = last.wlvl - first.wlvl;
-        var deltaHours = (last.dtime - first.dtime) / 3600000;
-        if (deltaHours === 0) return { direction: 'stable', rate: 0 };
+        const valid = readings.filter(r => r.wlvl != null);
+        if (valid.length < 2) return stable;
 
-        var rate = deltaLevel / deltaHours;
-        var direction = 'stable';
+        const last = valid[valid.length - 1];
+        const cutoff = new Date(last.dtime.getTime() - 6 * 3600 * 1000);
+        const recent = valid.filter(r => r.dtime >= cutoff);
+        if (recent.length < 2) return stable;
+
+        const first = recent[0];
+        const deltaLevel = last.wlvl - first.wlvl;
+        const deltaHours = (last.dtime - first.dtime) / 3600000;
+        if (deltaHours === 0) return stable;
+
+        const rate = deltaLevel / deltaHours;
+        let direction = 'stable';
         if (rate > 0.02) direction = 'rising';
         else if (rate < -0.02) direction = 'falling';
 
-        return { direction: direction, rate: round(Math.abs(rate), 2) };
+        return { direction, rate: round(Math.abs(rate), 2) };
     }
 
     function trendArrow(direction) {
-        if (direction === 'rising') return '\u2191';
-        if (direction === 'falling') return '\u2193';
-        return '\u2192';
+        if (direction === 'rising') return '↑';
+        if (direction === 'falling') return '↓';
+        return '→';
     }
 
-    function trendClass(direction) {
-        if (direction === 'rising') return 'color: var(--c-warning)';
-        if (direction === 'falling') return 'color: var(--c-normal)';
-        return 'color: var(--text-secondary)';
-    }
-
-    function slugify(str) {
-        return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    }
-
-    return {
-        formatDateTime: formatDateTime,
-        formatDate: formatDate,
-        round: round,
-        showToast: showToast,
-        computeTrend: computeTrend,
-        trendArrow: trendArrow,
-        trendClass: trendClass,
-        slugify: slugify
-    };
+    return { escapeHtml, round, lastValidReading, showToast, computeTrend, trendArrow };
 })();

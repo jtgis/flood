@@ -11,7 +11,7 @@ Real-time water level monitoring dashboard for New Brunswick rivers. A modern, g
 ## Features
 
 - **Live station markers** coloured by flood risk level (normal → advisory → watch → warning → flood)
-- **Water level charts** with observed data, FEWS-NB forecasts, and WSC real-time readings over a ±3 day window
+- **Water level charts** with observed data, FEWS-NB forecasts, and WSC real-time readings over a ±2 day window
 - **Historical flood extents** — toggle individual layers from 1973, 1976, 1987, 2008, and 2018 flood events
 - **NB province boundary** overlay with city/town labels (44 place names with zoom-dependent visibility)
 - **Glassmorphism UI** inspired by [nbfiremap.ca](https://nbfiremap.ca) — frosted glass panels, smooth animations
@@ -54,16 +54,16 @@ nbflood/
 
 ## Tech Stack
 
-- **[Leaflet 1.9.4](https://leafletjs.com/)** — Interactive map with custom markers, image overlays, and GeoJSON layers
-- **[Esri Leaflet 3.0](https://esri.github.io/esri-leaflet/)** — ArcGIS feature layer integration
-- **[Chart.js 4.4](https://www.chartjs.org/)** — Water level time-series charts with gradient fills and threshold annotations
-- **[chartjs-plugin-annotation](https://www.chartjs.org/chartjs-plugin-annotation/)** — Threshold lines on charts
+- **[Leaflet 1.9.4](https://leafletjs.com/)** — Interactive map with custom markers and GeoJSON layers
+- **[Leaflet.markercluster 1.5](https://github.com/Leaflet/Leaflet.markercluster)** — Groups nearby station markers
+- **[Esri Leaflet 3.0](https://esri.github.io/esri-leaflet/)** — Historical flood extent overlays from the GeoNB ArcGIS MapServer
+- **[Chart.js 4.4](https://www.chartjs.org/)** — Water level time-series charts, with small custom plugins for zone fills, threshold markers and the NOW line
 - **[chartjs-adapter-date-fns](https://github.com/chartjs/chartjs-adapter-date-fns)** — Date/time axis formatting
-- **Vanilla JS** — No frameworks, no build step, ES5-compatible
+- **Vanilla JS** — No frameworks and no build step. Modern JavaScript (`const`/`let`, arrow functions, `async`/`await`); each file is a plain script that exposes one global (`FloodData`, `FloodMap`, ...) so the page still works when opened straight from disk
 
 ## Browser Support
 
-Works in all modern browsers (Chrome, Firefox, Edge, Safari). Requires JavaScript enabled and internet access for data fetching.
+Works in current versions of Chrome, Firefox, Edge and Safari (2023 or newer). Requires JavaScript enabled and internet access for data fetching.
 
 ## Acknowledgements
 

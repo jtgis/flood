@@ -1,26 +1,26 @@
 ﻿/* ==========================================================================
-   list.js - Station list (inside toggled legend panel)
+   list.js - Station list (inside the toggled station list panel)
    ========================================================================== */
 
-var FloodList = (function () {
+const FloodList = (function () {
     'use strict';
 
-    var listEl = null;
-    var stations = [];
-    var currentSort = 'location';
-    var onSelect = null;
-    var selectedId = null;
-    var showNoData = false;
+    let listEl = null;
+    let stations = [];
+    let currentSort = 'location';
+    let onSelect = null;
+    let selectedId = null;
+    let showNoData = false;
 
     function init(selectCallback) {
         listEl = document.getElementById('station-list');
         onSelect = selectCallback;
 
-        // Sort buttons (inside legend panel)
-        var sortBtns = document.querySelectorAll('.sort-btn');
-        sortBtns.forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                sortBtns.forEach(function (b) { b.classList.remove('active'); });
+        // Sort buttons (inside the station list panel)
+        const sortBtns = document.querySelectorAll('.sort-btn');
+        sortBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sortBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentSort = btn.getAttribute('data-sort');
                 render();
@@ -33,74 +33,95 @@ var FloodList = (function () {
         render();
     }
 
+    /**
+     * The stations currently shown in the list, in display order.
+     * No-data stations are left out unless the "Show No-Data" box is ticked.
+     */
+    function visibleStations() {
+        return stations
+            .filter(s => showNoData || s.alertLevel !== 'nodata')
+            .sort(sortFn);
+    }
+
     function render() {
         if (!listEl) return;
-        var filtered = showNoData ? stations.slice() : stations.filter(function (s) { return s.alertLevel !== 'nodata'; });
-        var sorted = filtered.sort(sortFn);
 
         listEl.innerHTML = '';
-        sorted.forEach(function (station) {
-            var li = document.createElement('li');
-            li.className = 'station-item ' + station.alertLevel;
+        visibleStations().forEach(station => {
+            const li = document.createElement('li');
+            li.className = `station-item ${station.alertLevel}`;
             if (station.stationID === selectedId) li.classList.add('selected');
             li.setAttribute('data-id', station.stationID);
             li.setAttribute('tabindex', '0');
             li.setAttribute('role', 'button');
 
-            var levelText = station.currentLevel != null
-                ? FloodUtils.round(station.currentLevel, 2) + ' m'
-                : '\u2014';
+            const levelText = station.currentLevel != null
+                ? `${FloodUtils.round(station.currentLevel, 2)} m`
+                : '—';
+            const dotColor = FloodAlerts.COLORS[station.alertLevel] || FloodAlerts.COLORS.nodata;
+            const safeName = FloodUtils.escapeHtml(station.name);
 
-            var dotColor = FloodMap.COLORS[station.alertLevel] || FloodMap.COLORS.nodata;
+            li.innerHTML = `
+                <span class="station-dot" style="background:${dotColor}"></span>
+                <span class="station-name" title="${safeName}">${safeName}</span>
+                <span class="station-level">${levelText}</span>
+                <span class="station-trend">${FloodUtils.trendArrow(station.trend.direction)}</span>`;
 
-            li.innerHTML =
-                '<span class="station-dot" style="background:' + dotColor + '"></span>' +
-                '<span class="station-name" title="' + station.name + '">' + station.name + '</span>' +
-                '<span class="station-level">' + levelText + '</span>' +
-                '<span class="station-trend">' + FloodUtils.trendArrow(station.trend.direction) + '</span>';
-
-            li.addEventListener('click', function () { selectStation(station); });
-            li.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectStation(station); }
+            li.addEventListener('click', () => selectStation(station));
+            li.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectStation(station);
+                }
             });
 
             listEl.appendChild(li);
         });
     }
 
+    // Clicking a list item hands the station to app.js, which opens the
+    // panel and calls setSelected() so the list and map stay in sync.
     function selectStation(station) {
-        selectedId = station.stationID;
-        var items = listEl.querySelectorAll('.station-item');
-        items.forEach(function (item) {
-            item.classList.toggle('selected', item.getAttribute('data-id') === selectedId);
-        });
         if (typeof onSelect === 'function') onSelect(station);
     }
 
+    /**
+     * Highlight a station in the list (or clear it with null).
+     * Called by app.js whenever a station is picked, from the list or the map.
+     */
+    function setSelected(stationID) {
+        selectedId = stationID;
+        if (!listEl) return;
+        listEl.querySelectorAll('.station-item').forEach(item => {
+            item.classList.toggle('selected', item.getAttribute('data-id') === selectedId);
+        });
+    }
+
+    /**
+     * Compare two stations for the list's current sort order:
+     *   'location' - keep the order of the GeoNB feed, which runs down the
+     *                Saint John River from upstream (Connors) to Saint John
+     *   'name'     - A to Z
+     *   'risk'     - most severe alert first, then A to Z
+     */
     function sortFn(a, b) {
-        switch (currentSort) {
-            case 'name':
-                return a.name.localeCompare(b.name);
-            case 'risk':
-                var pa = FloodAlerts.alertPriority(a.alertLevel);
-                var pb = FloodAlerts.alertPriority(b.alertLevel);
-                if (pa !== pb) return pb - pa;
-                return a.name.localeCompare(b.name);
-            case 'location':
-            default:
-                return 0;
+        if (currentSort === 'name') {
+            return a.name.localeCompare(b.name);
         }
+        if (currentSort === 'risk') {
+            const severityDiff = FloodAlerts.alertPriority(b.alertLevel) - FloodAlerts.alertPriority(a.alertLevel);
+            return severityDiff !== 0 ? severityDiff : a.name.localeCompare(b.name);
+        }
+        return 0;   // 'location': keep the feed order
     }
 
     function updateLegend(stations) {
-        var counts = FloodAlerts.countAlerts(stations);
-        var el;
-        el = document.getElementById('count-normal');   if (el) el.textContent = counts.normal;
-        el = document.getElementById('count-advisory'); if (el) el.textContent = counts.advisory;
-        el = document.getElementById('count-watch');    if (el) el.textContent = counts.watch;
-        el = document.getElementById('count-warning');  if (el) el.textContent = counts.warning;
-        el = document.getElementById('count-flood');    if (el) el.textContent = counts.flood;
-        el = document.getElementById('count-nodata');   if (el) el.textContent = counts.nodata;
+        // counts looks like { normal: 11, advisory: 0, ... }; each goes in #count-<level>
+        const counts = FloodAlerts.countAlerts(stations);
+        Object.keys(counts).forEach(level => {
+            const el = document.getElementById(`count-${level}`);
+            if (el) el.textContent = counts[level];
+        });
     }
 
     function setShowNoData(val) {
@@ -108,24 +129,20 @@ var FloodList = (function () {
         render();
     }
 
+    /**
+     * Move to the next (+1) or previous (-1) station in the visible list,
+     * wrapping around at either end. Used by the left/right arrow keys.
+     */
     function selectByOffset(offset) {
-        if (!stations.length) return;
-        var sorted = stations.slice().sort(sortFn);
-        var curIdx = -1;
-        for (var i = 0; i < sorted.length; i++) {
-            if (sorted[i].stationID === selectedId) { curIdx = i; break; }
-        }
-        var newIdx = curIdx + offset;
-        if (newIdx < 0) newIdx = sorted.length - 1;
-        if (newIdx >= sorted.length) newIdx = 0;
-        selectStation(sorted[newIdx]);
+        const visible = visibleStations();
+        if (!visible.length) return;
+
+        const curIdx = visible.findIndex(s => s.stationID === selectedId);
+        let newIdx = curIdx + offset;
+        if (newIdx < 0) newIdx = visible.length - 1;
+        if (newIdx >= visible.length) newIdx = 0;
+        selectStation(visible[newIdx]);
     }
 
-    return {
-        init: init,
-        setStations: setStations,
-        updateLegend: updateLegend,
-        selectByOffset: selectByOffset,
-        setShowNoData: setShowNoData
-    };
+    return { init, setStations, setSelected, updateLegend, selectByOffset, setShowNoData };
 })();

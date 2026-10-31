@@ -8,7 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+          integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV" crossorigin="" />
     <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -33,7 +34,7 @@
         <button id="btn-zoom-out" class="ctrl-btn" title="Zoom out" aria-label="Zoom out">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
-        <button id="btn-layers" class="ctrl-btn" title="Toggle stations panel" aria-label="Toggle stations panel">
+        <button id="btn-layers" class="ctrl-btn" title="Toggle layers panel" aria-label="Toggle layers panel">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
         </button>
         <button id="btn-locate" class="ctrl-btn" title="My location" aria-label="My location">
@@ -42,10 +43,10 @@
     </div>
 
     <!-- Stations panel (toggled from bottom bar "stations" button) -->
-    <div id="legend-panel" class="legend-panel hidden">
+    <div id="station-list-panel" class="station-list-panel hidden">
         <div class="legend-header">
             <span class="legend-title">WATER LEVELS</span>
-            <button id="legend-close" class="legend-close-btn" aria-label="Close">&times;</button>
+            <button id="station-list-close" class="legend-close-btn" aria-label="Close">&times;</button>
         </div>
 
         <!-- Status legend -->
@@ -192,11 +193,11 @@
     </div>
 
     <!-- Summary modal -->
-    <div id="summary-modal" class="modal-overlay hidden">
+    <div id="summary-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="summary-title">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Flood Summary</h3>
-                <button class="modal-close" data-close="summary-modal">&times;</button>
+                <h3 id="summary-title">Flood Summary</h3>
+                <button class="modal-close" data-close="summary-modal" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body" id="summary-body">
                 <p class="modal-placeholder">Loading summary...</p>
@@ -204,7 +205,6 @@
         </div>
     </div>
 
-    <!-- Help modal -->
     <!-- Splash / Disclaimer screen -->
     <div id="splash-screen" class="splash-overlay">
         <div class="splash-card">
@@ -238,11 +238,12 @@
         </div>
     </div>
 
-    <div id="help-modal" class="modal-overlay hidden">
+    <!-- Help modal -->
+    <div id="help-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>About</h3>
-                <button class="modal-close" data-close="help-modal">&times;</button>
+                <h3 id="help-title">About</h3>
+                <button class="modal-close" data-close="help-modal" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body">
                 <p>Real-time water level monitoring for New Brunswick rivers and streams. This is an <strong>unofficial</strong> community project.</p>
@@ -250,7 +251,7 @@
                 <h4>How to Use</h4>
                 <ul>
                     <li>Tap a station marker or list item to view its water level chart</li>
-                    <li>Charts show observed levels, forecasts, and WSC readings over a 6-day window</li>
+                    <li>Charts show observed levels, forecasts, and WSC readings from 2 days ago to 2 days ahead</li>
                     <li><strong>Layers</strong> button (left) toggles historical flood extents and basemaps</li>
                     <li><strong>Stations</strong> button (bottom) opens the station list</li>
                     <li>Threshold lines on charts show advisory, watch, warning, flood, and record levels</li>
@@ -268,11 +269,11 @@
 
                 <h4>Data Sources</h4>
                 <ul>
-                    <li><a href="https://geonb.snb.ca/rwm/#en" target="_blank">GeoNB River Watch</a> / Province of NB: flood thresholds, forecasts, station data</li>
-                    <li><a href="https://wateroffice.ec.gc.ca/" target="_blank">Water Survey of Canada</a> / ECCC: real-time hydrometric gauges</li>
-                    <li><a href="https://geonb.snb.ca/arcgis/rest/services/GeoNB_ENV_Historical_Floods/MapServer" target="_blank">GeoNB Historical Floods</a>: flood extents (1973, 1976, 1987, 2008, 2018)</li>
-                    <li><a href="https://www.esri.com/" target="_blank">Esri</a>: imagery basemap &amp; ArcGIS services</li>
-                    <li><a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a>: street map tiles</li>
+                    <li><a href="https://geonb.snb.ca/rwm/#en" target="_blank" rel="noopener">GeoNB River Watch</a> / Province of NB: flood thresholds, forecasts, station data</li>
+                    <li><a href="https://wateroffice.ec.gc.ca/" target="_blank" rel="noopener">Water Survey of Canada</a> / ECCC: real-time hydrometric gauges</li>
+                    <li><a href="https://geonb.snb.ca/arcgis/rest/services/GeoNB_ENV_Historical_Floods/MapServer" target="_blank" rel="noopener">GeoNB Historical Floods</a>: flood extents (1973, 1976, 1987, 2008, 2018)</li>
+                    <li><a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>: imagery basemap &amp; ArcGIS services</li>
+                    <li><a href="https://www.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap</a>: street map tiles</li>
                 </ul>
 
                 <p class="help-disclaimer">Data is fetched in real time from public sources and may be delayed. Do not rely solely on this tool for flood safety decisions. Always consult official NB emergency resources.</p>
@@ -286,11 +287,15 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+            integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin=""></script>
+    <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"
+            integrity="sha384-twf8YFpk0FSzm0AmW2GRJjjnqIuQ2y86vZXh2roYI8O+kFbEBjSUDUT6U72w8shL" crossorigin=""></script>
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+            integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"
+            integrity="sha384-cVMg8E3QFwTvGCDuK+ET4PD341jF3W8nO1auiXfuZNQkzbUUiBGLsIQUE+b1mxws" crossorigin=""></script>
     <!-- App JS -->
     <script src="js/utils.js"></script>
     <script src="js/alerts.js"></script>

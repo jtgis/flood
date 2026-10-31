@@ -130,7 +130,7 @@ a { color: var(--c-normal); }
 .ctrl-btn:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,.5); outline: none; }
 
 /* ---------- Legend / Stations panel ---------- */
-.legend-panel {
+.station-list-panel {
     position: fixed;
     top: 16px;
     right: 16px;
@@ -148,7 +148,7 @@ a { color: var(--c-normal); }
     overflow: hidden;
     transition: opacity var(--transition), transform var(--transition);
 }
-.legend-panel.hidden {
+.station-list-panel.hidden {
     opacity: 0;
     pointer-events: none;
     transform: translateX(20px);
@@ -459,39 +459,6 @@ a { color: var(--c-normal); }
     flex-shrink: 0;
 }
 .sp-close:hover { background: #f1f5f9; color: #0f172a; }
-
-/* Gauge bar */
-.sp-gauge {
-    position: relative;
-    margin: 0 16px 6px;
-    height: 8px;
-}
-.sp-gauge-track {
-    display: flex;
-    height: 6px;
-    border-radius: 3px;
-    overflow: hidden;
-    background: #f1f5f9;
-}
-.sp-gauge-seg {
-    height: 100%;
-    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.sp-gauge-seg:first-child { border-radius: 3px 0 0 3px; }
-.sp-gauge-seg:last-child  { border-radius: 0 3px 3px 0; }
-.sp-gauge-marker {
-    position: absolute;
-    top: 50%;
-    width: 14px;
-    height: 14px;
-    background: #0f172a;
-    border: 2.5px solid #fff;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.25), 0 0 0 2px rgba(15,23,42,0.08);
-    z-index: 2;
-    transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
 
 /* Meta bar */
 .sp-meta {
@@ -903,13 +870,20 @@ a { color: var(--c-normal); }
     letter-spacing: 0.3px;
     color: #94a3b8;
 }
-.summary-table .status-dot {
+/* Coloured dot next to a status, in the summary table and the alert list */
+.modal-body .status-dot {
     width: 8px; height: 8px;
     border-radius: 50%;
     display: inline-block;
     margin-right: 6px;
     vertical-align: middle;
 }
+
+/* "Active Alerts" list under the summary table */
+.modal-body h4.summary-alerts-title { margin: 12px 0 6px; font-size: 13px; }
+.modal-body .summary-alert-list { list-style: none; padding: 0; }
+.summary-alert-list li { padding: 4px 0; font-size: 12px; }
+.summary-empty { margin-top: 10px; font-size: 13px; }
 
 /* ---------- Toast ---------- */
 .toast {
@@ -1048,7 +1022,7 @@ a { color: var(--c-normal); }
     .left-controls { top: 70px; left: 12px; gap: 6px; }
     .ctrl-btn { width: 48px; height: 48px; }
 
-    .legend-panel {
+    .station-list-panel {
         width: calc(100vw - 24px);
         right: 12px;
         top: 12px;
