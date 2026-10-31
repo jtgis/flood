@@ -59,11 +59,11 @@ nbflood/
 - **[Esri Leaflet 3.0](https://esri.github.io/esri-leaflet/)** — Historical flood extent overlays from the GeoNB ArcGIS MapServer
 - **[Chart.js 4.4](https://www.chartjs.org/)** — Water level time-series charts, with small custom plugins for zone fills, threshold markers and the NOW line
 - **[chartjs-adapter-date-fns](https://github.com/chartjs/chartjs-adapter-date-fns)** — Date/time axis formatting
-- **Vanilla JS** — No frameworks, no build step, ES5-compatible
+- **Vanilla JS** — No frameworks and no build step. Modern JavaScript (`const`/`let`, arrow functions, `async`/`await`); each file is a plain script that exposes one global (`FloodData`, `FloodMap`, ...) so the page still works when opened straight from disk
 
 ## Browser Support
 
-Works in all modern browsers (Chrome, Firefox, Edge, Safari). Requires JavaScript enabled and internet access for data fetching.
+Works in current versions of Chrome, Firefox, Edge and Safari (2023 or newer). Requires JavaScript enabled and internet access for data fetching.
 
 ## Acknowledgements
 
